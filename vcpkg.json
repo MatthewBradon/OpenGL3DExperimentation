@@ -1,0 +1,9 @@
+{
+  "dependencies": [
+    "freeglut",
+    "glad",
+    "glfw3",
+    "imgui",
+    "stb"
+  ]
+}
