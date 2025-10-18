@@ -66,7 +66,7 @@ int main() {
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
 
-    GLuint vertexShader = createShader("assets/shaders/triange.vert", GL_VERTEX_SHADER);
+    GLuint vertexShader = createShader("assets/shaders/triangle.vert", GL_VERTEX_SHADER);
     GLuint fragmentShader = createShader("assets/shaders/triangle.frag", GL_FRAGMENT_SHADER);
 
     GLuint shaderProgram = glCreateProgram();
