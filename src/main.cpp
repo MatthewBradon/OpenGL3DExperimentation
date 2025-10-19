@@ -25,14 +25,12 @@ void processInput(GLFWwindow *window) {
 
 //Triangle
 float vertices[] = {
-    0.5f, 0.5f, 0.0f, // top right
-    0.5f, -0.5f, 0.0f, // bottom right
-    -0.5f, -0.5f, 0.0f, // bottom left
-    -0.5f, 0.5f, 0.0f // top left
+    0.0f, 0.5f, 0.0f,
+    -0.5, -0.5f, 0.0f,
+    0.5f, -0.5f, 0.0f
 };
 unsigned int indices[] = {
-    0, 1, 3, // first triangle
-    1, 2, 3 // second triangle
+    0, 1, 2
 };
 int main() {
 
@@ -118,12 +116,30 @@ int main() {
     glEnableVertexAttribArray(0);
 
     //Wireframe mode
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+
 
     glUseProgram(shaderProgram);
 
+    int rotation = 0;
+    float timeAccumulator = 0.0f;
+    float stepTime = 0.075f; // seconds per rotation
+
+    float lastTime = glfwGetTime();
+
 
     while(!glfwWindowShouldClose(window)) {
+
+        float currentTime = glfwGetTime();
+        float deltaTime = currentTime - lastTime;
+        lastTime = currentTime;
+
+        timeAccumulator += deltaTime;
+        if (timeAccumulator >= stepTime) {
+            rotation = (rotation + 1) % 3;
+            timeAccumulator -= stepTime;
+        }
 
         //Handle input
         processInput(window);
@@ -131,9 +147,14 @@ int main() {
         //Render
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
-        // glDrawArrays(GL_TRIANGLES, 0, 3);
-        //Draw using indices
+        
+        // Set uniform for rotation
+        glUseProgram(shaderProgram);
+        GLint loc = glGetUniformLocation(shaderProgram, "rotation");
+        glUniform1i(loc, rotation);
+
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT,  0);
+        
         // Check call events and swap buffers
         glfwPollEvents();
         glfwSwapBuffers(window);
