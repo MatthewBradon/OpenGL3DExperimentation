@@ -25,9 +25,10 @@ void processInput(GLFWwindow *window) {
 
 //Triangle
 float vertices[] = {
-    0.0f, 0.5f, 0.0f,
-    -0.5, -0.5f, 0.0f,
-    0.5f, -0.5f, 0.0f
+    // positions // colors
+    0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f, // bottom right
+    -0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f, // bottom left
+    0.0f, 0.5f, 0.0f, 0.0f, 0.0f, 1.0f // top
 };
 unsigned int indices[] = {
     0, 1, 2
@@ -112,8 +113,13 @@ int main() {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
     // Tell OpenGL how to interpet the vec3 through layout 0 (aka handle mapping of vbo to shader vertex attributes)
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void *)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void *)0);
     glEnableVertexAttribArray(0);
+
+
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void *)(3*sizeof(float)));
+    glEnableVertexAttribArray(1);
+
 
     //Wireframe mode
     // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -122,25 +128,7 @@ int main() {
 
     glUseProgram(shaderProgram);
 
-    int rotation = 0;
-    float timeAccumulator = 0.0f;
-    float stepTime = 0.075f; // seconds per rotation
-
-    float lastTime = glfwGetTime();
-
-
     while(!glfwWindowShouldClose(window)) {
-
-        float currentTime = glfwGetTime();
-        float deltaTime = currentTime - lastTime;
-        lastTime = currentTime;
-
-        timeAccumulator += deltaTime;
-        if (timeAccumulator >= stepTime) {
-            rotation = (rotation + 1) % 3;
-            timeAccumulator -= stepTime;
-        }
-
         //Handle input
         processInput(window);
 
@@ -149,11 +137,8 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT);
         
         // Set uniform for rotation
-        glUseProgram(shaderProgram);
-        GLint loc = glGetUniformLocation(shaderProgram, "rotation");
-        glUniform1i(loc, rotation);
-
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT,  0);
+        
+        glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT,  0);
         
         // Check call events and swap buffers
         glfwPollEvents();
