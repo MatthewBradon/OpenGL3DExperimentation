@@ -40,3 +40,11 @@ GLuint createShader(std::string filePath, GLenum shaderType)  {
 
     return shader;
 }
+
+
+void checkGLError(const std::string& msg) {
+    GLenum err;
+    while ((err = glGetError()) != GL_NO_ERROR) {
+        std::cerr << "OpenGL error after " << msg << ": " << std::hex << err << std::endl;
+    }
+}
