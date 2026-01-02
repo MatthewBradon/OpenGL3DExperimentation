@@ -8,7 +8,7 @@ find_package(glfw3 CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(GLUT REQUIRED)
 find_package(Stb REQUIRED)
-
+find_package(glm CONFIG REQUIRED)
 # OpenGL3DExperimentation executable
 add_executable(OpenGL3DExperimentation
     src/main.cpp
@@ -33,4 +33,5 @@ target_link_libraries(OpenGL3DExperimentation PRIVATE
     glfw
     imgui::imgui
     GLUT::GLUT
+    glm::glm
 )

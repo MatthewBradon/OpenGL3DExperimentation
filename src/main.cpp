@@ -7,6 +7,10 @@
 #include <iostream>
 #include <filesystem>
 #include "OpenGLUtil.h"
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
@@ -209,9 +213,24 @@ int main() {
     glUniform1i(glGetUniformLocation(shaderProgram, "texture2"), 1);
 
 
+    // Getting the location of the transform uniform variable
+    GLuint transformLoc = glGetUniformLocation(shaderProgram,"transform");
+    
+    
+
+
     while(!glfwWindowShouldClose(window)) {
         //Handle input
         processInput(window);
+
+        glm::mat4 transformationMatrix = glm::mat4(1.0f);
+        transformationMatrix = glm::scale(transformationMatrix, glm::vec3(0.5, 0.5, 0.5));
+        transformationMatrix = glm::rotate(transformationMatrix, (float) glfwGetTime(), glm::vec3(0.0f, 0.0f, 1.0f));
+        transformationMatrix = glm::translate(transformationMatrix, glm::vec3(0.5f, -0.5f, 0.0f));
+
+
+
+        glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transformationMatrix));
 
         //Render
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
