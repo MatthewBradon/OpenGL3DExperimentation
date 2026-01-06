@@ -15,16 +15,110 @@
 #define WINDOW_HEIGHT 1080  
 #define WINDOW_WIDTH 1920
 
+glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
+glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
+glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+
+float lastX = WINDOW_WIDTH / 2.0f, lastY = WINDOW_HEIGHT / 2.0f;
+float pitch = 0.0f;
+float yaw = -90.0f; // Initialized to -90.0 degrees to look towards negative z axis
+bool firstMouse = true;
+float Zoom = 45.0f;
+
+float deltaTime = 0.0f; // Time between current frame and last frame
+float lastFrame = 0.0f; // Time of last frame
 
 //Call back function to resize openGL whenever the window changes
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
 }
 
+void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
+
+    if (firstMouse)
+    {
+        lastX = xpos;
+        lastY = ypos;
+        firstMouse = false;
+    }
+
+    float xoffset = xpos - lastX;
+    float yoffset = lastY - ypos; // Reversed since y-coordinates go from bottom to top
+
+    lastX = xpos;
+    lastY = ypos;
+
+    const float sensitivity = 0.1f;
+    xoffset *= sensitivity;
+    yoffset *= sensitivity;
+
+    yaw   += xoffset;
+    pitch += yoffset;
+
+    if (pitch > 89.0f) {
+        pitch = 89.0f;
+    } else if (pitch < -89.0f) {
+        pitch = -89.0f;
+    }
+
+    glm::vec3 direction;
+    direction.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+    direction.y = sin(glm::radians(pitch));
+    direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+    cameraFront = glm::normalize(direction);
+
+}
+
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
+    Zoom -= (float)yoffset;
+    if (Zoom < 1.0f) {
+        Zoom = 1.0f;
+    }
+    if (Zoom > 45.0f) {
+        Zoom = 45.0f;
+    }
+}
+
+void updateDeltaTime() {
+    float currentFrame = glfwGetTime();
+    deltaTime = currentFrame - lastFrame;
+    lastFrame = currentFrame;
+}
+
 void processInput(GLFWwindow *window) {
     if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, true);
     }
+
+    const float cameraSpeed = 5.5f * deltaTime;
+
+    if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+        cameraPos += cameraSpeed * cameraFront;
+    }
+
+    if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+
+        // If we want to move backwards we subtract from the camera position since its the z axis
+        cameraPos -= cameraSpeed * cameraFront;
+    }
+
+    if(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+        cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+    }
+
+    if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+        cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+        cameraPos += cameraSpeed * cameraUp;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
+        cameraPos -= cameraSpeed * cameraUp;
+    }
+
+
 }
 
 float vertices[] = {
@@ -89,6 +183,8 @@ glm::vec3 cubePositions[] = {
 	glm::vec3(-1.3f, 1.0f, -1.5f)
 };
 
+
+
 int main() {
 
     // Initialize libraries
@@ -119,6 +215,12 @@ int main() {
 
     // calls a the function when the window is resized
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+
+    // Hide cursors and capture it
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwSetCursorPosCallback(window, mouse_callback);
+
+    glfwSetScrollCallback(window, scroll_callback);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -195,44 +297,46 @@ int main() {
     
 
     // Load Create Textures
-    GLuint texture1, texture2;
-    // Image 1
-    createTexture("assets/textures/container.jpg", texture1);
-
-    // Image 2
-    createTexture("assets/textures/awesomeface.png", texture2);
+    GLuint texture1;
+    createTexture("assets/textures/katsuyo.jpg", texture1);
 
 
     glUseProgram(shaderProgram);
 
     // Tell OpenGL which texture we want to set first
     glUniform1i(glGetUniformLocation(shaderProgram, "texture1"), 0);
-    glUniform1i(glGetUniformLocation(shaderProgram, "texture2"), 1);
-
-
-    // Getting the location of the transform uniform variable
-    
 
     // Model Matrix
     GLuint modelLoc = glGetUniformLocation(shaderProgram,"model");
-    // model = glm::rotate(model, glm::radians(-55.0f), glm::vec3(1.0f, 0.0f, 0.0f));  // Rotate on x axis
 
     // View Matrix
     GLuint viewLoc = glGetUniformLocation(shaderProgram,"view");
-    glm::mat4 view = glm::mat4(1.0f);
-    // Translating the scene forwards (-z axis)
-    view = glm::translate(view, glm::vec3(0.0f, 0.0f, -3.0f));
 
 
     //Perspective Projection Matrix
     GLuint projectionLoc = glGetUniformLocation(shaderProgram,"projection");
     glm::mat4 projection;
-    projection = glm::perspective(glm::radians(45.0f), (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.1f, 100.0f);
+    
 
+    glm::mat4 view;
 
+    // RENDER LOOP
     while(!glfwWindowShouldClose(window)) {
+
+        updateDeltaTime();
+
         //Handle input
         processInput(window);
+
+        view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+
+        projection = glm::perspective(glm::radians(Zoom), (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.1f, 100.0f);
+
+        // std::cout << "Camera Position: "
+        //           << cameraPos.x << ", "
+        //           << cameraPos.y << ", "
+        //           << cameraPos.z << std::endl;
+
 
        //Set the matrix uniforms
         glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
@@ -246,8 +350,6 @@ int main() {
         // bind Texture
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture1);
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, texture2);
 
         // render container
         glBindVertexArray(VAO);
@@ -274,6 +376,7 @@ int main() {
     // Deallocate
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
+    glDeleteBuffers(1, &EBO);
 
 
     glfwTerminate();
