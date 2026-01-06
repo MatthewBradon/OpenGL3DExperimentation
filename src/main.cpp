@@ -214,23 +214,36 @@ int main() {
 
 
     // Getting the location of the transform uniform variable
-    GLuint transformLoc = glGetUniformLocation(shaderProgram,"transform");
     
-    
+
+    // Model Matrix
+    GLuint modelLoc = glGetUniformLocation(shaderProgram,"model");
+    glm::mat4 model = glm::mat4(1.0f); // Making an identity matrix
+    model = glm::rotate(model, glm::radians(-55.0f), glm::vec3(1.0f, 0.0f, 0.0f));  // Rotate on x axis
+
+
+    // View Matrix
+    GLuint viewLoc = glGetUniformLocation(shaderProgram,"view");
+    glm::mat4 view = glm::mat4(1.0f);
+    // Translating the scene forwards (-z axis)
+    view = glm::translate(view, glm::vec3(0.0f, 0.0f, -3.0f));
+
+
+    //Perspective Projection Matrix
+    GLuint projectionLoc = glGetUniformLocation(shaderProgram,"projection");
+    glm::mat4 projection;
+    projection = glm::perspective(glm::radians(45.0f), (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.1f, 100.0f);
 
 
     while(!glfwWindowShouldClose(window)) {
         //Handle input
         processInput(window);
 
-        glm::mat4 transformationMatrix = glm::mat4(1.0f);
-        transformationMatrix = glm::scale(transformationMatrix, glm::vec3(0.5, 0.5, 0.5));
-        transformationMatrix = glm::rotate(transformationMatrix, (float) glfwGetTime(), glm::vec3(0.0f, 0.0f, 1.0f));
-        transformationMatrix = glm::translate(transformationMatrix, glm::vec3(0.5f, -0.5f, 0.0f));
-
-
-
-        glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transformationMatrix));
+        // Transformation matrices to shader
+        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
         //Render
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
