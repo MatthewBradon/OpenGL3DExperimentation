@@ -12,6 +12,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include "Camera.h"
+#include "Shader.h"
 
 #define WINDOW_HEIGHT 1080  
 #define WINDOW_WIDTH 1920
@@ -185,31 +186,7 @@ int main() {
 
     glEnable(GL_DEPTH_TEST);
 
-    GLuint vertexShader = createShader("assets/shaders/triangle.vert", GL_VERTEX_SHADER);
-    GLuint fragmentShader = createShader("assets/shaders/triangle.frag", GL_FRAGMENT_SHADER);
-
-    GLuint shaderProgram = glCreateProgram();
-    glAttachShader(shaderProgram, vertexShader);
-    glAttachShader(shaderProgram, fragmentShader);
-    glLinkProgram(shaderProgram);
-    
-    // Check success
-    {
-        int success;
-        char infoLog[512];
-        glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-        if(!success) {
-            glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
-            
-        }
-    }
-
-
-    glDetachShader(shaderProgram, vertexShader);
-    glDetachShader(shaderProgram, fragmentShader);
-
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
+    Shader shaderProgram("assets/shaders/texture.vert", "assets/shaders/texture.frag");
     
 
     // Create VAO
@@ -259,23 +236,14 @@ int main() {
     createTexture("assets/textures/katsuyo.jpg", texture1);
 
 
-    glUseProgram(shaderProgram);
+    // glUseProgram(shaderProgram);
+    shaderProgram.use();
 
-    // Tell OpenGL which texture we want to set first
-    glUniform1i(glGetUniformLocation(shaderProgram, "texture1"), 0);
+    // Tell OpenGL which texture we want
+    shaderProgram.setInt("texture1", 0);
 
-    // Model Matrix
-    GLuint modelLoc = glGetUniformLocation(shaderProgram,"model");
-
-    // View Matrix
-    GLuint viewLoc = glGetUniformLocation(shaderProgram,"view");
-
-
-    //Perspective Projection Matrix
-    GLuint projectionLoc = glGetUniformLocation(shaderProgram,"projection");
-    glm::mat4 projection;
     
-
+    glm::mat4 projection;
     glm::mat4 view;
 
     // RENDER LOOP
@@ -291,15 +259,10 @@ int main() {
         projection = glm::perspective(glm::radians(camera.Zoom), (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.1f, 100.0f);
         view = camera.GetViewMatrix();
         
-        // std::cout << "Camera Position: "
-        //           << cameraPos.x << ", "
-        //           << cameraPos.y << ", "
-        //           << cameraPos.z << std::endl;
-
 
        //Set the matrix uniforms
-        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
+        shaderProgram.setMat4("view", view);
+        shaderProgram.setMat4("projection", projection);
 
         //Render
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
@@ -322,7 +285,7 @@ int main() {
             float angle = (float)glfwGetTime() * glm::radians(20.0f + i * 10.0f);
             model = glm::rotate(model, angle, glm::vec3(1.0f, 0.3f, 0.5f));
 
-            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+            shaderProgram.setMat4("model", model);
 
             glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
         }
