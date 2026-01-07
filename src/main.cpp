@@ -260,6 +260,7 @@ int main() {
         lightingShader.setVec3("objectColor", 1.0f, 0.5f, 0.31f);
         lightingShader.setVec3("lightColor", 1.0f, 1.0f, 1.0f);
         lightingShader.setVec3("lightPos", lightPos);
+        lightingShader.setVec3("viewPos", camera.Position);
 
         projection = glm::perspective(glm::radians(camera.Zoom), (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.1f, 100.0f);
         view = camera.GetViewMatrix();
@@ -283,8 +284,16 @@ int main() {
 
         // Move the scale the light cube then move to the light position
         model = glm::mat4(1.0f);
+        
+        float radius = 2.0f;
+        lightPos.x = sin(glfwGetTime()) * radius;
+        lightPos.z = cos(glfwGetTime()) * radius;
+
         model = glm::translate(model, lightPos);
         model = glm::scale(model, glm::vec3(0.2f)); // Make it smaller
+
+        
+
         lightCubeShader.setMat4("model", model);
 
         glBindVertexArray(lightCubeVAO);
