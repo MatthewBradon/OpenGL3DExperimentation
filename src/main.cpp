@@ -11,19 +11,16 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include "Camera.h"
 
 #define WINDOW_HEIGHT 1080  
 #define WINDOW_WIDTH 1920
 
-glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
-glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
-glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
 
+
+Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
 float lastX = WINDOW_WIDTH / 2.0f, lastY = WINDOW_HEIGHT / 2.0f;
-float pitch = 0.0f;
-float yaw = -90.0f; // Initialized to -90.0 degrees to look towards negative z axis
 bool firstMouse = true;
-float Zoom = 45.0f;
 
 float deltaTime = 0.0f; // Time between current frame and last frame
 float lastFrame = 0.0f; // Time of last frame
@@ -48,35 +45,12 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
     lastX = xpos;
     lastY = ypos;
 
-    const float sensitivity = 0.1f;
-    xoffset *= sensitivity;
-    yoffset *= sensitivity;
-
-    yaw   += xoffset;
-    pitch += yoffset;
-
-    if (pitch > 89.0f) {
-        pitch = 89.0f;
-    } else if (pitch < -89.0f) {
-        pitch = -89.0f;
-    }
-
-    glm::vec3 direction;
-    direction.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
-    direction.y = sin(glm::radians(pitch));
-    direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-    cameraFront = glm::normalize(direction);
+    camera.ProcessMouseMovement(xoffset, yoffset);
 
 }
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
-    Zoom -= (float)yoffset;
-    if (Zoom < 1.0f) {
-        Zoom = 1.0f;
-    }
-    if (Zoom > 45.0f) {
-        Zoom = 45.0f;
-    }
+    camera.ProcessMouseScroll(yoffset);
 }
 
 void updateDeltaTime() {
@@ -90,34 +64,18 @@ void processInput(GLFWwindow *window) {
         glfwSetWindowShouldClose(window, true);
     }
 
-    const float cameraSpeed = 5.5f * deltaTime;
-
-    if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-        cameraPos += cameraSpeed * cameraFront;
-    }
-
-    if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-
-        // If we want to move backwards we subtract from the camera position since its the z axis
-        cameraPos -= cameraSpeed * cameraFront;
-    }
-
-    if(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-        cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
-    }
-
-    if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-        cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
-    }
-
-    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-        cameraPos += cameraSpeed * cameraUp;
-    }
-
-    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
-        cameraPos -= cameraSpeed * cameraUp;
-    }
-
+    if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        camera.ProcessKeyboard(FORWARD, deltaTime);
+    if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        camera.ProcessKeyboard(BACKWARD, deltaTime);
+    if(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        camera.ProcessKeyboard(LEFT, deltaTime);
+    if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        camera.ProcessKeyboard(RIGHT, deltaTime);
+    if(glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
+        camera.ProcessKeyboard(UP, deltaTime);
+    if(glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
+        camera.ProcessKeyboard(DOWN, deltaTime);
 
 }
 
@@ -328,10 +286,11 @@ int main() {
         //Handle input
         processInput(window);
 
-        view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+        
 
-        projection = glm::perspective(glm::radians(Zoom), (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.1f, 100.0f);
-
+        projection = glm::perspective(glm::radians(camera.Zoom), (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.1f, 100.0f);
+        view = camera.GetViewMatrix();
+        
         // std::cout << "Camera Position: "
         //           << cameraPos.x << ", "
         //           << cameraPos.y << ", "
