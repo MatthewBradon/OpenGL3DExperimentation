@@ -23,6 +23,9 @@ Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
 float lastX = WINDOW_WIDTH / 2.0f, lastY = WINDOW_HEIGHT / 2.0f;
 bool firstMouse = true;
 
+bool flashlightOn = false;
+bool fKeyPressedLastFrame = false;
+
 float deltaTime = 0.0f; // Time between current frame and last frame
 float lastFrame = 0.0f; // Time of last frame
 
@@ -78,6 +81,15 @@ void processInput(GLFWwindow *window) {
     if(glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
         camera.ProcessKeyboard(DOWN, deltaTime);
 
+
+    
+
+}
+
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    if (key == GLFW_KEY_F && action == GLFW_PRESS) {
+        flashlightOn = !flashlightOn;
+    }
 }
 
 float vertices[] = {
@@ -183,6 +195,9 @@ int main() {
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetCursorPosCallback(window, mouse_callback);
 
+    // Set key callback
+    glfwSetKeyCallback(window, key_callback);
+
     glfwSetScrollCallback(window, scroll_callback);
 
     glEnable(GL_BLEND);
@@ -225,7 +240,7 @@ int main() {
 
     // Load Create Textures
     GLuint diffuseTexture;
-    createTexture("assets/textures/container2.png", diffuseTexture);
+    createTexture("assets/textures/Hiyoribeer.png", diffuseTexture);
 
     GLuint specularTexture;
     createTexture("assets/textures/container2_specular.png", specularTexture);
@@ -266,8 +281,12 @@ int main() {
 
     // light properties
     lightingShader.setVec3("light.ambient", 0.2f, 0.2f, 0.2f); 
-    lightingShader.setVec3("light.diffuse", 0.5f, 0.5f, 0.5f);
+    lightingShader.setVec3("light.diffuse", 0.9f, 0.9f, 0.9f);
     lightingShader.setVec3("light.specular", 1.0f, 1.0f, 1.0f);
+
+    lightingShader.setFloat("light.constant", 1.0f);
+    lightingShader.setFloat("light.linear", 0.09f);
+    lightingShader.setFloat("light.quadratic", 0.032f);
 
     // Set texture
     lightingShader.setInt("material.diffuse", 0); // Set to texture unit 0
@@ -282,14 +301,27 @@ int main() {
         processInput(window);
 
         //Render
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         lightingShader.use();
         lightingShader.setVec3("objectColor", 1.0f, 1.0f, 1.0f);
-        // lightingShader.setVec3("light.position", lightPos);
-        lightingShader.setVec3("light.direction", -0.2f, -1.0f, -0.3f);
         
+        // Flashlight
+
+        lightingShader.setVec3("light.position", camera.Position);
+        lightingShader.setVec3("light.direction", camera.Front);
+
+        if (flashlightOn) {
+            lightingShader.setFloat("light.cutOff", glm::cos(glm::radians(12.5f)));
+            lightingShader.setFloat("light.outerCutOff", glm::cos(glm::radians(17.5f)));
+        } else {
+            lightingShader.setFloat("light.cutOff", glm::cos(glm::radians(0.0f)));
+            lightingShader.setFloat("light.outerCutOff", glm::cos(glm::radians(0.0f)));
+        }
+
+        
+
         lightingShader.setVec3("viewPos", camera.Position);
 
         projection = glm::perspective(glm::radians(camera.Zoom), (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.1f, 100.0f);
@@ -297,8 +329,13 @@ int main() {
         lightingShader.setMat4("view", view);
         lightingShader.setMat4("projection", projection);
 
-        // glm::mat4 model = glm::mat4(1.0f);        
-        // lightingShader.setMat4("model", model);
+        glBindVertexArray(cubeVAO);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, diffuseTexture);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, specularTexture);
 
         for (unsigned int i = 0; i < 10; i++) {
             glm::mat4 model = glm::mat4(1.0f);
@@ -310,32 +347,22 @@ int main() {
             glDrawArrays(GL_TRIANGLES, 0, 36);
         }
 
-        glBindVertexArray(cubeVAO);
 
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, diffuseTexture);
 
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, specularTexture);
 
-        glDrawArrays(GL_TRIANGLES, 0, 36);
 
         // lightCubeShader.use();
         // lightCubeShader.setMat4("projection", projection);
         // lightCubeShader.setMat4("view", view);
 
         // // Move the scale the light cube then move to the light position
-        // // model = glm::mat4(1.0f);
+        // glm::mat4 model = glm::mat4(1.0f);
         
-        // // float radius = 2.0f;
-        // // lightPos.x = sin(glfwGetTime()) * radius;
-        // // lightPos.z = cos(glfwGetTime()) * radius;
-
-        // // model = glm::translate(model, lightPos);
-        // // model = glm::scale(model, glm::vec3(0.2f)); // Make it smaller
+        // model = glm::translate(model, lightPos);
+        // model = glm::scale(model, glm::vec3(0.2f)); // Make it smaller
 
         
-        // // lightCubeShader.setMat4("model", model);
+        // lightCubeShader.setMat4("model", model);
 
         // glBindVertexArray(lightCubeVAO);
         // glDrawArrays(GL_TRIANGLES, 0, 36);
