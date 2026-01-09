@@ -212,9 +212,12 @@ int main() {
     glEnableVertexAttribArray(2);
 
     // Load Create Textures
-    GLuint texture1;
-    createTexture("assets/textures/Hiyoribeer.png", texture1);
-    glUniform1i(glGetUniformLocation(lightingShader.ID, "texture1"), 0);
+    GLuint diffuseTexture;
+    createTexture("assets/textures/container2.png", diffuseTexture);
+
+    GLuint specularTexture;
+    createTexture("assets/textures/container2_specular.png", specularTexture);
+    
 
 
 
@@ -244,6 +247,20 @@ int main() {
     glm::mat4 projection;
     glm::mat4 view;
 
+
+    lightingShader.use();
+    lightingShader.setVec3("material.specular", 1.0f, 1.0f, 1.0f);
+    lightingShader.setFloat("material.shininess", 32.0f);
+
+    // light properties
+    lightingShader.setVec3("light.ambient", 0.2f, 0.2f, 0.2f); 
+    lightingShader.setVec3("light.diffuse", 0.5f, 0.5f, 0.5f);
+    lightingShader.setVec3("light.specular", 1.0f, 1.0f, 1.0f);
+
+    // Set texture
+    lightingShader.setInt("material.diffuse", 0); // Set to texture unit 0
+    lightingShader.setInt("material.specular", 1); // Set to texture unit 1
+
     // RENDER LOOP
     while(!glfwWindowShouldClose(window)) {
 
@@ -257,9 +274,8 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         lightingShader.use();
-        lightingShader.setVec3("objectColor", 1.0f, 0.5f, 0.31f);
-        lightingShader.setVec3("lightColor", 1.0f, 1.0f, 1.0f);
-        lightingShader.setVec3("lightPos", lightPos);
+        lightingShader.setVec3("objectColor", 1.0f, 1.0f, 1.0f);
+        lightingShader.setVec3("light.position", lightPos);
         lightingShader.setVec3("viewPos", camera.Position);
 
         projection = glm::perspective(glm::radians(camera.Zoom), (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.1f, 100.0f);
@@ -274,7 +290,10 @@ int main() {
         glBindVertexArray(cubeVAO);
 
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texture1);
+        glBindTexture(GL_TEXTURE_2D, diffuseTexture);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, specularTexture);
 
         glDrawArrays(GL_TRIANGLES, 0, 36);
 
@@ -293,7 +312,6 @@ int main() {
         model = glm::scale(model, glm::vec3(0.2f)); // Make it smaller
 
         
-
         lightCubeShader.setMat4("model", model);
 
         glBindVertexArray(lightCubeVAO);
@@ -308,7 +326,7 @@ int main() {
     glDeleteVertexArrays(1, &cubeVAO);
     glDeleteVertexArrays(1, &lightCubeVAO);
     glDeleteBuffers(1, &VBO);
-    glDeleteTextures(1, &texture1);
+    glDeleteTextures(1, &diffuseTexture);
 
     glfwTerminate();
     return 0;
