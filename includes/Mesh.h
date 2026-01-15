@@ -35,10 +35,11 @@ class Mesh {
             setupMesh();
         }
 		void Draw(Shader &shader) {
-            GLuint diffuseNr = 1;
-            GLuint specularNr = 1;
+            GLuint diffuseNr = 0;
+            GLuint specularNr = 0;
             for (unsigned int i = 0; i < textures.size(); i++) {
                 glActiveTexture(GL_TEXTURE0 + i);
+                glBindTexture(GL_TEXTURE_2D, textures[i].id);
 
                 std::string number;
                 std::string name = textures[i].type;
@@ -50,10 +51,13 @@ class Mesh {
                     specularNr++;
                 }
 
-                shader.setFloat(("material."+ name + number).c_str(), i);
-                glBindTexture(GL_TEXTURE_2D, textures[i].id);
+                shader.setInt(("material."+ name + "[" + number + "]").c_str(), i);
                 
             }
+
+            shader.setInt("material.diffuseCount", diffuseNr);
+            shader.setInt("material.specularCount", specularNr);
+            shader.setFloat("material.shininess", 32.0f);
 
             glActiveTexture(GL_TEXTURE0);
 

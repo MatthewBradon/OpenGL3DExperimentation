@@ -10,15 +10,15 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
-
 #include "Mesh.h"
+#include <filesystem>
 #include "Shader.h"
 #include "OpenGLUtil.h"
 
 
 class Model {
 	public:
-		Model(char *path) {
+		Model(std::string path) {
 		    loadModel(path);
 		}
 		void Draw(Shader &shader) {
@@ -42,7 +42,7 @@ class Model {
                 return;
             }
 
-            directory = path.substr(0, path.find_last_of('/'));
+            directory = std::filesystem::path(path).parent_path().string();
 
             processNode(scene->mRootNode, scene);
         }
@@ -149,7 +149,9 @@ Mesh processMesh(aiMesh *mesh, const aiScene *scene) {
             bool skip = false;
 
             for(unsigned int j = 0; j < loadedTextures.size(); j++) {
-                if(std::strcmp(loadedTextures[j].path.c_str(), str.C_Str()) == 0) {
+                std::filesystem::path p1 = loadedTextures[j].path;
+                std::filesystem::path p2 = str.C_Str();
+                if (p1.filename() == p2.filename()) {
                     textures.push_back(loadedTextures[j]);
                     skip = true;
                     break;
