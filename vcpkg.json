@@ -3,8 +3,9 @@
     "freeglut",
     "glad",
     "glfw3",
+    "glm",
     "imgui",
     "stb",
-    "glm"
+    "assimp"
   ]
 }

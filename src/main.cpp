@@ -7,12 +7,12 @@
 #include <string>
 #include <iostream>
 #include <filesystem>
-#include "OpenGLUtil.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-#include "Camera.h"
-#include "Shader.h"
+#include <Camera.h>
+#include <Shader.h>
+#include <OpenGLUtil.h>
 
 #define WINDOW_HEIGHT 1080  
 #define WINDOW_WIDTH 1920
