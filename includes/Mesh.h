@@ -12,12 +12,23 @@ struct Vertex {
     glm::vec3 Position;
     glm::vec3 Normal;
     glm::vec2 TexCoords;
+
+    Vertex() : Position(0.0f), Normal(0.0f), TexCoords(0.0f) {}
+
+    Vertex(const glm::vec3& position, const glm::vec3& normal, const glm::vec2& texCoords)
+        : Position(position), Normal(normal), TexCoords(texCoords) {}
 };
 
 struct Texture {
     GLuint id;
     std::string type;
     std::string path;
+
+    Texture() : id(0), type(""), path("") {}
+
+    Texture(GLuint textureID, const std::string& textureType, const std::string& texturePath)
+        : id(textureID), type(textureType), path(texturePath) {}
+
 };
 
 class Mesh {
@@ -26,6 +37,7 @@ class Mesh {
 		std::vector<GLuint> indices;
 		std::vector<Texture> textures;
 
+        Mesh() {}
 
 		Mesh(std::vector<Vertex> vertices, std::vector<GLuint> indices, std::vector<Texture> textures) {
             this->vertices = vertices;
@@ -34,6 +46,7 @@ class Mesh {
 
             setupMesh();
         }
+
 		void Draw(Shader &shader) {
             GLuint diffuseNr = 0;
             GLuint specularNr = 0;
