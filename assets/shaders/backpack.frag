@@ -64,6 +64,7 @@ uniform vec3 viewPos;
 vec3 calculateDirectionalLight(DirectionalLight light, vec3 normal, vec3 viewDir);
 vec3 calculatePointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir);
 vec3 calculateSpotLight(SpotLight light, vec3 normal, vec3 fragPos, vec3 viewDir);
+float LinearizeDepth(float depth);
 
 void main() {
     
@@ -72,9 +73,10 @@ void main() {
     
     vec3 result = calculateDirectionalLight(dirLight, norm, viewDir);
 
-    for(int i = 0; i < NR_POINT_LIGHTS; i++) {
-        result += calculatePointLight(pointLights[i], norm, FragPos, viewDir);
-    }
+    // for(int i = 0; i < NR_POINT_LIGHTS; i++) {
+    //     result += calculatePointLight(pointLights[i], norm, FragPos, viewDir);
+    // }
+
 
     result += calculateSpotLight(spotLight, norm, FragPos, viewDir);    
     

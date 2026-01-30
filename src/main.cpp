@@ -96,29 +96,44 @@ int main() {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+    // Enable depth testing
     glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
 
-    Shader lightingShader("assets/shaders/backpack.vert", "assets/shaders/backpack.frag");
+    // Enable Stencil Testing
+    glEnable(GL_STENCIL_TEST);
+    glStencilFunc(GL_ALWAYS, 1, 0xFF); // Initially, all fragments pass
+    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE); // Replace stencil value on depth pass
 
+    Shader shader("assets/shaders/backpack.vert", "assets/shaders/backpack.frag");
+    Shader singleColorShader("assets/shaders/backpack.vert", "assets/shaders/shaderSingleColor.frag");
     
     // Model
     std::string backpackPath = "assets/objects/backpack/backpack.obj";
     Model backpack(std::filesystem::absolute(backpackPath).string());
    
 
-    int planeTextureDiffuse = createTexture("assets/textures/container2.png");
-    int planeTextureSpecular = createTexture("assets/textures/container2_specular.png");
+    int planeTextureDiffuse = createTexture("assets/textures/marble.jpg");
 
     std::vector<Texture> planeTextures = {
-        Texture(planeTextureDiffuse, "texture_diffuse", "container2.png"),
-        Texture(planeTextureSpecular, "texture_specular", "container2_specular.png")
+        Texture(planeTextureDiffuse, "texture_diffuse", "marble.jpg"),
     };
 
 
 
-    Plane groundPlane(glm::vec3(0.0f, -1.0f, 0.0f), 0.0f, planeTextures);
-    Cube groundCube(planeTextures);
+    Plane groundPlane(glm::vec3(0.0f, 1.0f, 0.0f), 0.0f, planeTextures, 5.0f);
 
+    int cubeTextureDiffuse = createTexture("assets/textures/metal.png");
+
+    std::vector<Texture> cubeTextures = {
+        Texture(cubeTextureDiffuse, "texture_diffuse", "metal.png"),
+    };
+
+    Cube groundCube(cubeTextures);
+
+
+    Cube cube2(cubeTextures);
+    Cube cube3(cubeTextures);
 
     //Wireframe mode
     // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -128,30 +143,30 @@ int main() {
     glm::mat4 view;
 
 
-    lightingShader.use();
+    shader.use();
 
     // Directional light
-    lightingShader.setVec3("dirLight.direction", -0.2f, -1.0f, -0.3f);
-    lightingShader.setVec3("dirLight.ambient", 0.05f, 0.05f, 0.05f);
-    lightingShader.setVec3("dirLight.diffuse", 0.4f, 0.4f, 0.4f);
-    lightingShader.setVec3("dirLight.specular", 0.5f, 0.5f, 0.5f);
+    shader.setVec3("dirLight.direction", -0.2f, -1.0f, -0.3f);
+    shader.setVec3("dirLight.ambient", 0.05f, 0.05f, 0.05f);
+    shader.setVec3("dirLight.diffuse", 0.4f, 0.4f, 0.4f);
+    shader.setVec3("dirLight.specular", 0.5f, 0.5f, 0.5f);
 
     // Spotlight
-    lightingShader.setVec3("spotLight.ambient", 0.0f, 0.0f, 0.0f);
-    lightingShader.setVec3("spotLight.diffuse", 1.0f, 1.0f, 1.0f);
-    lightingShader.setVec3("spotLight.specular", 1.0f, 1.0f, 1.0f);
-    lightingShader.setFloat("spotLight.constant", 1.0f);
-    lightingShader.setFloat("spotLight.linear", 0.09f);
-    lightingShader.setFloat("spotLight.quadratic", 0.032f);
+    shader.setVec3("spotLight.ambient", 0.0f, 0.0f, 0.0f);
+    shader.setVec3("spotLight.diffuse", 1.0f, 1.0f, 1.0f);
+    shader.setVec3("spotLight.specular", 1.0f, 1.0f, 1.0f);
+    shader.setFloat("spotLight.constant", 1.0f);
+    shader.setFloat("spotLight.linear", 0.09f);
+    shader.setFloat("spotLight.quadratic", 0.032f);
 
 
     // Point lights
-    lightingShader.setVec3("pointLights[0].ambient", 0.05f, 0.05f, 0.05f);
-    lightingShader.setVec3("pointLights[0].diffuse", 0.8f, 0.8f, 0.8f);
-    lightingShader.setVec3("pointLights[0].specular", 1.0f, 1.0f, 1.0f);
-    lightingShader.setFloat("pointLights[0].constant", 1.0f);
-    lightingShader.setFloat("pointLights[0].linear", 0.09f);
-    lightingShader.setFloat("pointLights[0].quadratic", 0.032f);
+    // shader.setVec3("pointLights[0].ambient", 0.05f, 0.05f, 0.05f);
+    // shader.setVec3("pointLights[0].diffuse", 0.8f, 0.8f, 0.8f);
+    // shader.setVec3("pointLights[0].specular", 1.0f, 1.0f, 1.0f);
+    // shader.setFloat("pointLights[0].constant", 1.0f);
+    // shader.setFloat("pointLights[0].linear", 0.09f);
+    // shader.setFloat("pointLights[0].quadratic", 0.032f);
 
 
     // Light angle
@@ -169,61 +184,118 @@ int main() {
 
         //Render
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
 
         
-        lightingShader.use();
-        lightingShader.setVec3("objectColor", 1.0f, 1.0f, 1.0f);
+        shader.use();
+        shader.setVec3("objectColor", 1.0f, 1.0f, 1.0f);
 
-        lightingShader.setVec3("viewPos", camera.Position);
+        shader.setVec3("viewPos", camera.Position);
 
 
         // Uniforms for the 4 point lights
         // point light 1
-        lightAngle += lightSpeed * deltaTime;
-        float x = lightRadius * cos(lightAngle);
-        float z = lightRadius * sin(lightAngle);
-        pointLightPositions[0] = glm::vec3(x, 0.2f, z);
-        lightingShader.setVec3("pointLights[0].position", pointLightPositions[0]);
+        // lightAngle += lightSpeed * deltaTime;
+        // float x = lightRadius * cos(lightAngle);
+        // float z = lightRadius * sin(lightAngle);
+        // pointLightPositions[0] = glm::vec3(x, 0.2f, z);
+        // shader.setVec3("pointLights[0].position", pointLightPositions[0]);
 
         
 
         // Update Flashlight
-        lightingShader.setVec3("spotLight.position", camera.Position);
-        lightingShader.setVec3("spotLight.direction", camera.Front);
+        shader.setVec3("spotLight.position", camera.Position);
+        shader.setVec3("spotLight.direction", camera.Front);
 
-        processFlashlight(lightingShader);
+        processFlashlight(shader);
 
 
         // view/projection transformations
         projection = glm::perspective(glm::radians(camera.Zoom), (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.1f, 100.0f);
         view = camera.GetViewMatrix();
-        lightingShader.setMat4("view", view);
-        lightingShader.setMat4("projection", projection);
+        shader.setMat4("view", view);
+        shader.setMat4("projection", projection);
 
 
         // Render the backpack model
         glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f)); // Translate it down so it's at the center of the scene
-        model = glm::scale(model, glm::vec3(0.2f, 0.2f, 0.2f));	// Scale it down
-        lightingShader.setMat4("model", model);
-        backpack.Draw(lightingShader);
+        // model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f)); // Translate it down so it's at the center of the scene
+        // model = glm::scale(model, glm::vec3(0.2f, 0.2f, 0.2f));	// Scale it down
+        // shader.setMat4("model", model);
+        // backpack.Draw(shader);
 
+        // PHASE 1: Render normal objects and write to stencil buffer
+        glStencilMask(0xFF);
+        glStencilFunc(GL_ALWAYS, 1, 0xFF);
+        glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+        
+        // Stop writing to the stencil buffer for the ground plane
+        glStencilMask(0x00);
         // Render ground plane
         model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(0.0f, -0.5f, 0.0f));
-        lightingShader.setMat4("model", model);
-        groundPlane.Draw(lightingShader);
+        shader.setMat4("model", model);
+        groundPlane.Draw(shader);
 
+        // Start writing to the stencil buffer for the cubes
+        glStencilMask(0xFF);
 
         // Render ground cube
         model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(5.0f, 0.0f, 0.0f));
-        lightingShader.setMat4("model", model);
-        groundCube.Draw(lightingShader);
+        model = glm::translate(model, glm::vec3(12.0f, -2.0f, 0.0f));
+        model = glm::scale(model, glm::vec3(3.0f, 3.0f, 20.0f));
+        shader.setMat4("model", model);
+        groundCube.Draw(shader);
+
+        // Two cubes near each other slightly overlapping on the Z axis
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(-2.0f, 0.0f, 0.0f));
+        shader.setMat4("model", model);
+        cube2.Draw(shader);
+
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(2.0f, 0.0f, 0.3f));
+        shader.setMat4("model", model);
+        cube3.Draw(shader);
+
+        // PHASE 2: Draw outlines - render scaled versions only where stencil != 1
+        glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
+        glStencilMask(0x00); // Don't write to stencil buffer
+        glDepthMask(GL_FALSE); // Don't write to depth buffer
+        
+        float scale = 1.1f;
+        singleColorShader.use();
+        singleColorShader.setMat4("view", view);
+        singleColorShader.setMat4("projection", projection);
+
+        // Render ground cube outline
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(12.0f, -2.0f, 0.0f));
+        model = glm::scale(model, glm::vec3(3.0f*scale, 3.0f*scale, 20.0f*scale));
+        singleColorShader.setMat4("model", model);
+        groundCube.Draw(singleColorShader);
+
+        // Two cubes outlines
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(-2.0f, 0.0f, 0.0f));
+        model = glm::scale(model, glm::vec3(scale, scale, scale));
+        singleColorShader.setMat4("model", model);
+        cube2.Draw(singleColorShader);
+
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(2.0f, 0.0f, 0.3f));
+        model = glm::scale(model, glm::vec3(scale, scale, scale));
+        singleColorShader.setMat4("model", model);
+        cube3.Draw(singleColorShader);
 
         glBindVertexArray(0);
+
+        // Restore state
+        glStencilMask(0xFF);
+        glStencilFunc(GL_ALWAYS, 0, 0xFF);
+        glDepthMask(GL_TRUE);
+
         // Check call events and swap buffers
         glfwPollEvents();
         glfwSwapBuffers(window);
