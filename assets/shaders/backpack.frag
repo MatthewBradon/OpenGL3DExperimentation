@@ -61,6 +61,8 @@ uniform SpotLight spotLight;
 uniform vec3 objectColor;
 uniform vec3 viewPos;
 
+vec4 SampleDiffuse();
+vec3 SampleSpecular();
 vec3 calculateDirectionalLight(DirectionalLight light, vec3 normal, vec3 viewDir);
 vec3 calculatePointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir);
 vec3 calculateSpotLight(SpotLight light, vec3 normal, vec3 fragPos, vec3 viewDir);
@@ -71,6 +73,8 @@ void main() {
     vec3 norm = normalize(Normal);
     vec3 viewDir = normalize(viewPos - FragPos);
     
+    vec4 diffuseColor = SampleDiffuse();
+
     vec3 result = calculateDirectionalLight(dirLight, norm, viewDir);
 
     // for(int i = 0; i < NR_POINT_LIGHTS; i++) {
@@ -80,14 +84,14 @@ void main() {
 
     result += calculateSpotLight(spotLight, norm, FragPos, viewDir);    
     
-    FragColor = vec4(result, 1.0);
+    FragColor = vec4(result, diffuseColor.a);
 }
 
 
-vec3 SampleDiffuse() {
-    vec3 color = vec3(0.0);
+vec4 SampleDiffuse() {
+    vec4 color = vec4(0.0);
     for (int i = 0; i < material.diffuseCount; i++) {
-        color += texture(material.texture_diffuse[i], TexCoord).rgb;
+        color += texture(material.texture_diffuse[i], TexCoord);
     }
     // Average
     return color / max(material.diffuseCount, 1);
@@ -113,7 +117,7 @@ vec3 calculateDirectionalLight(DirectionalLight light, vec3 normal, vec3 viewDir
 	vec3 reflectDir = reflect(-lightDir, normal);
 	float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
 	
-    vec3 diffuseTex  = SampleDiffuse();
+    vec3 diffuseTex  = SampleDiffuse().rgb;
     vec3 specularTex = SampleSpecular();
 
 
@@ -145,7 +149,7 @@ vec3 calculatePointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewD
     );
 
 
-    vec3 diffuseTex  = SampleDiffuse();
+    vec3 diffuseTex  = SampleDiffuse().rgb;
     vec3 specularTex = SampleSpecular();
 
     // Apply
@@ -187,7 +191,7 @@ vec3 calculateSpotLight(SpotLight light, vec3 normal, vec3 fragPos, vec3 viewDir
     float intensity = clamp((theta - light.outerCutOff) / epsilon, 0.0, 1.0);
 
 
-    vec3 diffuseTex  = SampleDiffuse();
+    vec3 diffuseTex  = SampleDiffuse().rgb;
     vec3 specularTex = SampleSpecular();
 
 

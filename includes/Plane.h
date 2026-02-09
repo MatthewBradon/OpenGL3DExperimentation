@@ -28,13 +28,13 @@ public:
         for (auto& vertex : vertices) {
             vertex.Normal = normal;
             vertex.TexCoords = glm::vec2(
-                (vertex.Position.x / (2.0f * size)) + 0.5f,
-                (vertex.Position.z / (2.0f * size)) + 0.5f
+                glm::dot(vertex.Position - center, u) / (2.0f * size) + 0.5f,
+                glm::dot(vertex.Position - center, v) / (2.0f * size) + 0.5f
             );
         }
 
-        std::vector<GLuint> indices = {0, 1, 2, 2, 3, 0};
-
+        std::vector<GLuint> indices = {0, 2, 1, 0, 3, 2};
+        
         mesh = Mesh(vertices, indices, textures);
     }
 

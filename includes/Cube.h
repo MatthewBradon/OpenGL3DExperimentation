@@ -49,30 +49,37 @@ public:
         };
 
         std::vector<GLuint> indices = {
-            // -Z (back)
-            0,  1,  2,
-            2,  3,  0,
+            // -Z (back) - viewed from -Z, vertices are: 0(-0.5,-0.5,-0.5), 1(0.5,-0.5,-0.5), 2(0.5,0.5,-0.5), 3(-0.5,0.5,-0.5)
+            // CCW from outside: 0 -> 3 -> 2, 0 -> 2 -> 1
+            0, 3, 2,
+            0, 2, 1,
 
-            // +Z (front)
-            4,  5,  6,
-            6,  7,  4,
+            // +Z (front) - viewed from +Z, vertices are: 4(-0.5,-0.5,0.5), 5(0.5,-0.5,0.5), 6(0.5,0.5,0.5), 7(-0.5,0.5,0.5)
+            // CCW from outside: 4 -> 5 -> 6, 4 -> 6 -> 7
+            4, 5, 6,
+            4, 6, 7,
 
-            // -X (left)
-            8,  9, 10,
-            10, 11,  8,
+            // -X (left) - viewed from -X, vertices are: 8(-0.5,-0.5,-0.5), 9(-0.5,0.5,-0.5), 10(-0.5,0.5,0.5), 11(-0.5,-0.5,0.5)
+            // CCW from outside: 8 -> 11 -> 10, 8 -> 10 -> 9
+            8, 11, 10,
+            8, 10, 9,
 
-            // +X (right)
+            // +X (right) - viewed from +X, vertices are: 12(0.5,-0.5,-0.5), 13(0.5,0.5,-0.5), 14(0.5,0.5,0.5), 15(0.5,-0.5,0.5)
+            // CCW from outside: 12 -> 13 -> 14, 12 -> 14 -> 15
             12, 13, 14,
-            14, 15, 12,
+            12, 14, 15,
 
-            // -Y (bottom)
+            // -Y (bottom) - viewed from -Y, vertices are: 16(-0.5,-0.5,-0.5), 17(0.5,-0.5,-0.5), 18(0.5,-0.5,0.5), 19(-0.5,-0.5,0.5)
+            // CCW from outside (looking up from below): 16 -> 17 -> 18, 16 -> 18 -> 19
             16, 17, 18,
-            18, 19, 16,
+            16, 18, 19,
 
-            // +Y (top)
-            20, 21, 22,
-            22, 23, 20
+            // +Y (top) - viewed from +Y, vertices are: 20(-0.5,0.5,-0.5), 21(0.5,0.5,-0.5), 22(0.5,0.5,0.5), 23(-0.5,0.5,0.5)
+            // CCW from outside (looking down from above): 20 -> 23 -> 22, 20 -> 22 -> 21
+            20, 23, 22,
+            20, 22, 21
         };
+
 
         mesh = Mesh(vertices, indices, textures);
     }

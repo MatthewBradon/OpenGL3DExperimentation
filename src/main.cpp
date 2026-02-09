@@ -53,6 +53,10 @@ glm::vec3 pointLightPositions[] = {
 };
 
 
+std::vector<glm::vec3> grassPositions;
+
+
+
 int main() {
 
     // Initialize libraries
@@ -93,17 +97,18 @@ int main() {
 
     glfwSetScrollCallback(window, scroll_callback);
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
     // Enable depth testing
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
 
-    // Enable Stencil Testing
-    glEnable(GL_STENCIL_TEST);
-    glStencilFunc(GL_ALWAYS, 1, 0xFF); // Initially, all fragments pass
-    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE); // Replace stencil value on depth pass
+    // Blend
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    // Face culling
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW);
 
     Shader shader("assets/shaders/backpack.vert", "assets/shaders/backpack.frag");
     Shader singleColorShader("assets/shaders/backpack.vert", "assets/shaders/shaderSingleColor.frag");
@@ -145,6 +150,23 @@ int main() {
 
     shader.use();
 
+    // GRASS SETUP
+    grassPositions.push_back(glm::vec3(-1.5f, 0.5f, -0.48f));
+    grassPositions.push_back(glm::vec3( 1.5f, 0.5f, 0.51f));
+    grassPositions.push_back(glm::vec3( 0.0f, 0.5f, 0.7f));
+    grassPositions.push_back(glm::vec3(-0.3f, 0.5f, -2.3f));
+    grassPositions.push_back(glm::vec3( 0.5f, 0.5f, -0.6f));
+
+    int grassTextureDiffuse = createTexture("assets/textures/grass.png", false);
+    std::vector<Texture> grassTextures = {
+        Texture(grassTextureDiffuse, "texture_diffuse", "grass.png"),
+    };
+
+    Plane grassPlane(glm::vec3(1.0f, 0.0f, 0.0f), 0.0f, grassTextures, 1.0f);
+    
+
+    // LIGHT SETUP
+
     // Directional light
     shader.setVec3("dirLight.direction", -0.2f, -1.0f, -0.3f);
     shader.setVec3("dirLight.ambient", 0.05f, 0.05f, 0.05f);
@@ -167,6 +189,7 @@ int main() {
     // shader.setFloat("pointLights[0].constant", 1.0f);
     // shader.setFloat("pointLights[0].linear", 0.09f);
     // shader.setFloat("pointLights[0].quadratic", 0.032f);
+
 
 
     // Light angle
@@ -225,28 +248,18 @@ int main() {
         // shader.setMat4("model", model);
         // backpack.Draw(shader);
 
-        // PHASE 1: Render normal objects and write to stencil buffer
-        glStencilMask(0xFF);
-        glStencilFunc(GL_ALWAYS, 1, 0xFF);
-        glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
-        
-        // Stop writing to the stencil buffer for the ground plane
-        glStencilMask(0x00);
         // Render ground plane
         model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(0.0f, -0.5f, 0.0f));
         shader.setMat4("model", model);
         groundPlane.Draw(shader);
 
-        // Start writing to the stencil buffer for the cubes
-        glStencilMask(0xFF);
-
-        // Render ground cube
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(12.0f, -2.0f, 0.0f));
-        model = glm::scale(model, glm::vec3(3.0f, 3.0f, 20.0f));
-        shader.setMat4("model", model);
-        groundCube.Draw(shader);
+        // // Render ground cube
+        // model = glm::mat4(1.0f);
+        // model = glm::translate(model, glm::vec3(12.0f, -2.0f, 0.0f));
+        // model = glm::scale(model, glm::vec3(3.0f, 3.0f, 20.0f));
+        // shader.setMat4("model", model);
+        // groundCube.Draw(shader);
 
         // Two cubes near each other slightly overlapping on the Z axis
         model = glm::mat4(1.0f);
@@ -259,42 +272,20 @@ int main() {
         shader.setMat4("model", model);
         cube3.Draw(shader);
 
-        // PHASE 2: Draw outlines - render scaled versions only where stencil != 1
-        glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
-        glStencilMask(0x00); // Don't write to stencil buffer
-        glDepthMask(GL_FALSE); // Don't write to depth buffer
-        
-        float scale = 1.1f;
-        singleColorShader.use();
-        singleColorShader.setMat4("view", view);
-        singleColorShader.setMat4("projection", projection);
+        glDepthMask(GL_FALSE);
 
-        // Render ground cube outline
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(12.0f, -2.0f, 0.0f));
-        model = glm::scale(model, glm::vec3(3.0f*scale, 3.0f*scale, 20.0f*scale));
-        singleColorShader.setMat4("model", model);
-        groundCube.Draw(singleColorShader);
+        // Render grass planes
+        for (auto position : grassPositions) {
+            model = glm::mat4(1.0f);
+            model = glm::translate(model, position);
+            shader.setMat4("model", model);
+            grassPlane.Draw(shader);
+        }
 
-        // Two cubes outlines
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(-2.0f, 0.0f, 0.0f));
-        model = glm::scale(model, glm::vec3(scale, scale, scale));
-        singleColorShader.setMat4("model", model);
-        cube2.Draw(singleColorShader);
-
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(2.0f, 0.0f, 0.3f));
-        model = glm::scale(model, glm::vec3(scale, scale, scale));
-        singleColorShader.setMat4("model", model);
-        cube3.Draw(singleColorShader);
+        glDepthMask(GL_TRUE);
 
         glBindVertexArray(0);
 
-        // Restore state
-        glStencilMask(0xFF);
-        glStencilFunc(GL_ALWAYS, 0, 0xFF);
-        glDepthMask(GL_TRUE);
 
         // Check call events and swap buffers
         glfwPollEvents();
