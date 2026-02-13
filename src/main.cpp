@@ -55,7 +55,16 @@ glm::vec3 pointLightPositions[] = {
 
 std::vector<glm::vec3> grassPositions;
 
+float quadVertices[] = { // vertex attributes for a quad that fills the entire screen in Normalized Device Coordinates.
+// positions   // texCoords
+-1.0f,  1.0f,  0.0f, 1.0f,
+-1.0f, -1.0f,  0.0f, 0.0f,
+1.0f, -1.0f,  1.0f, 0.0f,
 
+-1.0f,  1.0f,  0.0f, 1.0f,
+1.0f, -1.0f,  1.0f, 0.0f,
+1.0f,  1.0f,  1.0f, 1.0f
+};
 
 int main() {
 
@@ -110,9 +119,65 @@ int main() {
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
 
-    Shader shader("assets/shaders/backpack.vert", "assets/shaders/backpack.frag");
-    Shader singleColorShader("assets/shaders/backpack.vert", "assets/shaders/shaderSingleColor.frag");
+    Shader shader("assets/shaders/shader.vert", "assets/shaders/shader.frag");
+    Shader screenShader("assets/shaders/framebufferScreen.vert", "assets/shaders/framebufferScreen.frag");
     
+
+
+    // Quad for post processing
+    GLuint quadVAO, quadVBO;
+    glGenVertexArrays(1, &quadVAO);
+    glGenBuffers(1, &quadVBO);
+    glBindVertexArray(quadVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+   
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+   
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+    
+    screenShader.use();
+    screenShader.setInt("screenTexture", 0);
+
+
+    // Framebuffer Configuration
+
+    GLuint framebuffer;
+
+    glGenFramebuffers(1, &framebuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+
+    // Create a color attachment texture
+    GLuint textureColorBuffer;
+    glGenTextures(1, &textureColorBuffer);
+    glBindTexture(GL_TEXTURE_2D, textureColorBuffer);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureColorBuffer, 0);
+
+    // Create depth and still attachment renderbuffer
+    GLuint rbo;
+    glGenRenderbuffers(1, &rbo);
+    glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, WINDOW_WIDTH, WINDOW_HEIGHT);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        std::cout << "ERROR: Framebuffer is not complete!" << std::endl;
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
+
     // Model
     std::string backpackPath = "assets/objects/backpack/backpack.obj";
     Model backpack(std::filesystem::absolute(backpackPath).string());
@@ -128,10 +193,12 @@ int main() {
 
     Plane groundPlane(glm::vec3(0.0f, 1.0f, 0.0f), 0.0f, planeTextures, 5.0f);
 
-    int cubeTextureDiffuse = createTexture("assets/textures/metal.png");
+    int cubeTextureDiffuse = createTexture("assets/textures/container2.png");
+    int cubeTextureSpecular = createTexture("assets/textures/container2_specular.png");
 
     std::vector<Texture> cubeTextures = {
-        Texture(cubeTextureDiffuse, "texture_diffuse", "metal.png"),
+        Texture(cubeTextureDiffuse, "texture_diffuse", "container2.png"),
+        Texture(cubeTextureSpecular, "texture_specular", "container2_specular.png"),
     };
 
     Cube groundCube(cubeTextures);
@@ -205,12 +272,14 @@ int main() {
         //Handle input
         processInput(window);
 
-        //Render
+
+        glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+        glEnable(GL_DEPTH_TEST); // Enable because its disabled for rendering the quad
+
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-
-        
+        // Render the scene
         shader.use();
         shader.setVec3("objectColor", 1.0f, 1.0f, 1.0f);
 
@@ -285,6 +354,19 @@ int main() {
         glDepthMask(GL_TRUE);
 
         glBindVertexArray(0);
+
+
+        //  Bind to defualt framebuffer
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glDisable(GL_DEPTH_TEST); // Disable depth test so screen-space quad isn't discarded due to depth test.
+        glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        screenShader.use();
+        glBindVertexArray(quadVAO);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, textureColorBuffer);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
 
 
         // Check call events and swap buffers

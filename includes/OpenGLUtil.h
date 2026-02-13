@@ -88,6 +88,35 @@ int createTexture(const char *filePath, bool flipVertically=true) {
     return textureID;
 }
 
+int allocateTexture(GLenum internalFormat, int width, int height, GLenum format, GLenum type) {
+    GLuint textureID;
+    glGenTextures(1, &textureID);
+    
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, format, type, NULL);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    return textureID;
+}
+
+int attachTextureToFramebuffer(GLuint framebuffer, GLuint texture, GLenum attachment) {
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, attachment, GL_TEXTURE_2D, texture, 0);
+    return 0;
+}
+
+int createRenderbuffer(GLenum internalFormat, int width, int height) {
+    GLuint rbo;
+    glGenRenderbuffers(1, &rbo);
+    glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+    glRenderbufferStorage(GL_RENDERBUFFER, internalFormat, width, height);
+    return rbo;
+}
+
+
+
 
 void checkGLError(const std::string& msg) {
     GLenum err;
