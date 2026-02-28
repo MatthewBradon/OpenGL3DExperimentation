@@ -116,6 +116,54 @@ int createRenderbuffer(GLenum internalFormat, int width, int height) {
 }
 
 
+int createCubeMapTexture(std::vector<std::string>& textureFaces) {
+    
+    GLuint textureID;
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
+
+    for (unsigned int i = 0; i < textureFaces.size(); i++) {
+        int image_width, image_height, nrChannels;
+        stbi_set_flip_vertically_on_load(false);
+        auto path = std::filesystem::absolute(textureFaces[i]);
+        std::cout << "Loading cubemap face: " << path.string() << std::endl;
+        unsigned char *image_data = stbi_load(path.string().c_str(), &image_width, &image_height, &nrChannels, 0);
+
+        if (!image_data) {
+            std::cerr << "Failed to load cubemap face: " << stbi_failure_reason() << std::endl;
+            stbi_image_free(image_data);
+            glfwTerminate();
+            return 0;
+        }
+
+        GLenum format;
+        if(nrChannels == 1)
+            format = GL_RED;
+        else if(nrChannels == 3)
+            format = GL_RGB;
+        else if(nrChannels == 4)
+            format = GL_RGBA;
+        else {
+            std::cerr << "Unsupported number of channels in cubemap face: " << nrChannels << std::endl;
+            stbi_image_free(image_data);
+            glfwTerminate();
+            return 0;
+        }
+
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, format, image_width, image_height, 0, format, GL_UNSIGNED_BYTE, image_data);
+        
+        
+        stbi_image_free(image_data);
+    }
+
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+    return textureID;
+}
 
 
 void checkGLError(const std::string& msg) {

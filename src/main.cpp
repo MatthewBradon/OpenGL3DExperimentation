@@ -16,6 +16,7 @@
 #include <OpenGLUtil.h>
 #include <Plane.h>
 #include <Cube.h>
+#include <SkyCube.h>
 
 #define WINDOW_HEIGHT 1080  
 #define WINDOW_WIDTH 1920
@@ -121,6 +122,7 @@ int main() {
 
     Shader shader("assets/shaders/shader.vert", "assets/shaders/shader.frag");
     Shader screenShader("assets/shaders/framebufferScreen.vert", "assets/shaders/framebufferScreen.frag");
+    Shader skyboxShader("assets/shaders/skybox.vert", "assets/shaders/skybox.frag");
     
 
 
@@ -207,6 +209,34 @@ int main() {
     Cube cube2(cubeTextures);
     Cube cube3(cubeTextures);
 
+
+
+    // Skybox
+    // std::vector<std::string> faces
+    // {
+    //     "assets/textures/skybox/right.jpg",
+    //     "assets/textures/skybox/left.jpg",
+    //     "assets/textures/skybox/top.jpg",
+    //     "assets/textures/skybox/bottom.jpg",
+    //     "assets/textures/skybox/front.jpg",
+    //     "assets/textures/skybox/back.jpg"
+    // };
+
+        std::vector<std::string> faces
+    {
+        "assets/textures/Hiyoribeer2.png",
+        "assets/textures/Hiyoribeer2.png",
+        "assets/textures/Hiyoribeer2.png",
+        "assets/textures/Hiyoribeer2.png",
+        "assets/textures/Hiyoribeer2.png",
+        "assets/textures/Hiyoribeer2.png"
+    };
+
+    GLuint cubemapTexture = createCubeMapTexture(faces);
+    std::cout << "Cubemap texture ID: " << cubemapTexture << std::endl;
+
+    SkyCube skybox(cubemapTexture);
+
     //Wireframe mode
     // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
@@ -258,6 +288,8 @@ int main() {
     // shader.setFloat("pointLights[0].quadratic", 0.032f);
 
 
+    skyboxShader.use();
+    skyboxShader.setInt("skybox", 0);
 
     // Light angle
     float lightAngle = 0.0f;
@@ -344,6 +376,7 @@ int main() {
         glDepthMask(GL_FALSE);
 
         // Render grass planes
+        shader.use();
         for (auto position : grassPositions) {
             model = glm::mat4(1.0f);
             model = glm::translate(model, position);
@@ -353,8 +386,14 @@ int main() {
 
         glDepthMask(GL_TRUE);
 
-        glBindVertexArray(0);
+        // Draw skybox last
+        skyboxShader.use();
+        view = glm::mat4(glm::mat3(camera.GetViewMatrix())); // Remove translation from the view matrix
+        skyboxShader.setMat4("view", view);
+        skyboxShader.setMat4("projection", projection);
+        skybox.Draw(skyboxShader);
 
+        glBindVertexArray(0);
 
         //  Bind to defualt framebuffer
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
