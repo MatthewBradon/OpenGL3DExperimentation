@@ -70,6 +70,8 @@ vec3 calculatePointLight(PointLight light, vec3 normal, vec3 FragPosition, vec3 
 vec3 calculateSpotLight(SpotLight light, vec3 normal, vec3 FragPosition, vec3 viewDir);
 float LinearizeDepth(float depth);
 
+float refractionRatio = 1.00 / 1.52;
+
 void main() {
     
     vec3 norm = normalize(Normal);
@@ -86,10 +88,18 @@ void main() {
 
     result += calculateSpotLight(spotLight, norm, FragPosition, viewDir);    
     
+    // Reflection of skybox
     vec3 viewDirection = normalize(FragPosition - cameraPosition);
     vec3 reflectionVector = reflect(viewDirection, normalize(Normal));
 
     result += texture(skybox, reflectionVector).rgb;
+
+    // Refraction of skybox
+
+    
+    vec3 refractionVector = refract(viewDirection, normalize(Normal), refractionRatio);
+
+    result += texture(skybox, refractionVector).rgb;
 
     FragColor = vec4(result, diffuseColor.a);
 }
