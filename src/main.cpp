@@ -212,25 +212,25 @@ int main() {
 
 
     // Skybox
-    // std::vector<std::string> faces
-    // {
-    //     "assets/textures/skybox/right.jpg",
-    //     "assets/textures/skybox/left.jpg",
-    //     "assets/textures/skybox/top.jpg",
-    //     "assets/textures/skybox/bottom.jpg",
-    //     "assets/textures/skybox/front.jpg",
-    //     "assets/textures/skybox/back.jpg"
-    // };
-
-        std::vector<std::string> faces
+    std::vector<std::string> faces
     {
-        "assets/textures/Hiyoribeer2.png",
-        "assets/textures/Hiyoribeer2.png",
-        "assets/textures/Hiyoribeer2.png",
-        "assets/textures/Hiyoribeer2.png",
-        "assets/textures/Hiyoribeer2.png",
-        "assets/textures/Hiyoribeer2.png"
+        "assets/textures/skybox/right.jpg",
+        "assets/textures/skybox/left.jpg",
+        "assets/textures/skybox/top.jpg",
+        "assets/textures/skybox/bottom.jpg",
+        "assets/textures/skybox/front.jpg",
+        "assets/textures/skybox/back.jpg"
     };
+
+    //     std::vector<std::string> faces
+    // {
+    //     "assets/textures/Hiyoribeer2.png",
+    //     "assets/textures/Hiyoribeer2.png",
+    //     "assets/textures/Hiyoribeer2.png",
+    //     "assets/textures/Hiyoribeer2.png",
+    //     "assets/textures/Hiyoribeer2.png",
+    //     "assets/textures/Hiyoribeer2.png"
+    // };
 
     GLuint cubemapTexture = createCubeMapTexture(faces);
     std::cout << "Cubemap texture ID: " << cubemapTexture << std::endl;
@@ -246,6 +246,7 @@ int main() {
 
 
     shader.use();
+    shader.setInt("skybox", 3);  // Use texture unit 3 for cubemap
 
     // GRASS SETUP
     grassPositions.push_back(glm::vec3(-1.5f, 0.5f, -0.48f));
@@ -316,6 +317,11 @@ int main() {
         shader.setVec3("objectColor", 1.0f, 1.0f, 1.0f);
 
         shader.setVec3("viewPos", camera.Position);
+        shader.setVec3("cameraPosition", camera.Position);
+
+        // Bind cubemap for reflections
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
 
 
         // Uniforms for the 4 point lights
