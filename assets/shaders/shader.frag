@@ -89,17 +89,21 @@ void main() {
     result += calculateSpotLight(spotLight, norm, FragPosition, viewDir);    
     
     // Reflection of skybox
+    // vec3 viewDirection = normalize(FragPosition - cameraPosition);
+    // vec3 reflectionVector = reflect(viewDirection, normalize(Normal));
+
+    // result += texture(skybox, reflectionVector).rgb;
+
+    // Reflect skybox based on specular highlights
     vec3 viewDirection = normalize(FragPosition - cameraPosition);
     vec3 reflectionVector = reflect(viewDirection, normalize(Normal));
+    vec3 specularHighlights = SampleSpecular();
+    result += texture(skybox, reflectionVector).rgb * specularHighlights;
 
-    result += texture(skybox, reflectionVector).rgb;
 
     // Refraction of skybox
-
-    
-    vec3 refractionVector = refract(viewDirection, normalize(Normal), refractionRatio);
-
-    result += texture(skybox, refractionVector).rgb;
+    // vec3 refractionVector = refract(viewDirection, normalize(Normal), refractionRatio);
+    // result += texture(skybox, refractionVector).rgb;
 
     FragColor = vec4(result, diffuseColor.a);
 }

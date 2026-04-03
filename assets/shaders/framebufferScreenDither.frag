@@ -24,7 +24,8 @@ void main()
 
     float grayscaleColor = dot(color, vec3(0.299, 0.587, 0.114));
 
-    grayscaleColor = 1.0 - grayscaleColor;
+    // Invert the color
+    // grayscaleColor = 1.0 - grayscaleColor;
 
     float threshold = bayer4x4(gl_FragCoord.xy * 0.2);
 
