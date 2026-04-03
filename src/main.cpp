@@ -28,7 +28,7 @@ float lastX = WINDOW_WIDTH / 2.0f, lastY = WINDOW_HEIGHT / 2.0f;
 bool firstMouse = true;
 
 bool flashlightOn = false;
-bool fKeyPressedLastFrame = false;
+bool useDither = false;
 
 float deltaTime = 0.0f; // Time between current frame and last frame
 float lastFrame = 0.0f; // Time of last frame
@@ -122,6 +122,7 @@ int main() {
 
     Shader shader("assets/shaders/shader.vert", "assets/shaders/shader.frag");
     Shader screenShader("assets/shaders/framebufferScreen.vert", "assets/shaders/framebufferScreen.frag");
+    Shader ditherShader("assets/shaders/framebufferScreen.vert", "assets/shaders/framebufferScreenDither.frag");
     Shader skyboxShader("assets/shaders/skybox.vert", "assets/shaders/skybox.frag");
     
 
@@ -146,6 +147,8 @@ int main() {
     screenShader.use();
     screenShader.setInt("screenTexture", 0);
 
+    ditherShader.use();
+    ditherShader.setInt("screenTexture", 0);
 
     // Framebuffer Configuration
 
@@ -407,7 +410,13 @@ int main() {
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        screenShader.use();
+
+        if (useDither) {
+            ditherShader.use();
+        } else {
+            screenShader.use();
+        }
+
         glBindVertexArray(quadVAO);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, textureColorBuffer);
@@ -471,7 +480,6 @@ void processInput(GLFWwindow *window) {
     if(glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
         camera.ProcessKeyboard(DOWN, deltaTime);
 
-
     
 
 }
@@ -490,5 +498,8 @@ void processFlashlight(Shader& shader) {
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if (key == GLFW_KEY_F && action == GLFW_PRESS) {
         flashlightOn = !flashlightOn;
+    }
+    if (key == GLFW_KEY_V && action == GLFW_PRESS) {
+        useDither = !useDither;
     }
 }
