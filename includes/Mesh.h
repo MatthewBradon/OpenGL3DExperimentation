@@ -6,7 +6,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <string>
 #include <vector>
-#include <Shader.h>
+#include "Shader.h"
 
 struct Vertex {
     glm::vec3 Position;

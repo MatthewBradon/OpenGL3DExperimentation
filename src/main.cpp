@@ -10,13 +10,14 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-#include <Camera.h>
-#include <Shader.h>
-#include <Model.h>
-#include <OpenGLUtil.h>
-#include <Plane.h>
-#include <Cube.h>
-#include <SkyCube.h>
+#include "Camera.h"
+#include "Shader.h"
+#include "Model.h"
+#include "OpenGLUtil.h"
+#include "Plane.h"
+#include "Cube.h"
+#include "SkyCube.h"
+#include "PointLight.h"
 
 #define WINDOW_HEIGHT 1080  
 #define WINDOW_WIDTH 1920
@@ -48,10 +49,6 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
 }
 
-
-glm::vec3 pointLightPositions[] = {
-    glm::vec3( 0.7f,  0.2f,  2.0f),
-};
 
 
 std::vector<glm::vec3> grassPositions;
@@ -130,6 +127,7 @@ int main() {
     Shader screenShader("assets/shaders/framebufferScreen.vert", "assets/shaders/framebufferScreen.frag");
     Shader ditherShader("assets/shaders/framebufferScreen.vert", "assets/shaders/framebufferScreenDither.frag");
     Shader skyboxShader("assets/shaders/skybox.vert", "assets/shaders/skybox.frag");
+    Shader lightCubeShader("assets/shaders/light_cube.vert", "assets/shaders/light_cube.frag");
     
 
 
@@ -241,6 +239,10 @@ int main() {
     Cube cube2(cubeTextures);
     Cube cube3(cubeTextures);
 
+    // Small cube used to visualize the point light position
+    std::vector<Texture> __emptyTextures;
+    Cube lightCube(__emptyTextures);
+
 
 
     // Skybox
@@ -313,13 +315,8 @@ int main() {
 
 
     // Point lights
-    shader.setVec3("pointLights[0].ambient", 0.05f, 0.05f, 0.05f);
-    shader.setVec3("pointLights[0].diffuse", 0.8f, 0.8f, 0.8f);
-    shader.setVec3("pointLights[0].specular", 1.0f, 1.0f, 1.0f);
-    shader.setFloat("pointLights[0].constant", 1.0f);
-    shader.setFloat("pointLights[0].linear", 0.09f);
-    shader.setFloat("pointLights[0].quadratic", 0.032f);
-    shader.setVec3("pointLights[0].position", glm::vec3(0.0f, 5.0f, 0.0f));
+    PointLight pointLight1(glm::vec3(0.0f, 3.5f, 0.0f), glm::vec3(0.05f), glm::vec3(0.8f), glm::vec3(1.0f), 1.0f, 0.09f, 0.032f);
+    pointLight1.setShaderUniforms(shader, 0);
 
     skyboxShader.use();
     skyboxShader.setInt("skybox", 0);
@@ -358,12 +355,12 @@ int main() {
 
         // Uniforms for the 4 point lights
         // point light 1
-        // lightAngle += lightSpeed * deltaTime;
-        // float x = lightRadius * cos(lightAngle);
-        // float z = lightRadius * sin(lightAngle);
-        // pointLightPositions[0] = glm::vec3(x, 0.2f, z);
-        // shader.setVec3("pointLights[0].position", pointLightPositions[0]);
-
+        lightAngle += lightSpeed * deltaTime;
+        float x = lightRadius * cos(lightAngle);
+        float z = lightRadius * sin(lightAngle);
+        pointLight1.position = glm::vec3(x, 3.5f, z);
+        shader.setVec3("pointLights[0].position", pointLight1.position);
+        // Draw a small blue cube at the point light position for 
         
 
         // Update Flashlight
@@ -397,6 +394,10 @@ int main() {
         shader.setMat4("model", model);
         cube3.Draw(shader);
 
+        
+        // pointLight1.drawDebugCube(lightCubeShader, view, projection);
+
+    
         // Draw skybox last
         skyboxShader.use();
         view = glm::mat4(glm::mat3(camera.GetViewMatrix())); // Remove translation from the view matrix
