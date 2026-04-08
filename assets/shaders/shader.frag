@@ -57,9 +57,7 @@ uniform Material material;
 uniform DirectionalLight dirLight;
 uniform PointLight pointLights[NR_POINT_LIGHTS];
 uniform SpotLight spotLight;
-
 uniform vec3 objectColor;
-uniform vec3 viewPos;
 uniform vec3 cameraPosition;
 uniform samplerCube skybox;
 
@@ -69,21 +67,23 @@ vec3 calculateDirectionalLight(DirectionalLight light, vec3 normal, vec3 viewDir
 vec3 calculatePointLight(PointLight light, vec3 normal, vec3 FragPosition, vec3 viewDir);
 vec3 calculateSpotLight(SpotLight light, vec3 normal, vec3 FragPosition, vec3 viewDir);
 float LinearizeDepth(float depth);
+float PhongSpecular(vec3 lightDir, vec3 normal, vec3 viewDir);
+float BlinnPhongSpecular(vec3 lightDir, vec3 normal, vec3 viewDir);
 
 float refractionRatio = 1.00 / 1.52;
 
 void main() {
     
     vec3 norm = normalize(Normal);
-    vec3 viewDir = normalize(viewPos - FragPosition);
-    
+    vec3 viewDir = normalize(cameraPosition - FragPosition);
+
     vec4 diffuseColor = SampleDiffuse();
 
     vec3 result = calculateDirectionalLight(dirLight, norm, viewDir);
 
-    // for(int i = 0; i < NR_POINT_LIGHTS; i++) {
-    //     result += calculatePointLight(pointLights[i], norm, FragPosition, viewDir);
-    // }
+    for(int i = 0; i < NR_POINT_LIGHTS; i++) {
+        result += calculatePointLight(pointLights[i], norm, FragPosition, viewDir);
+    }
 
 
     result += calculateSpotLight(spotLight, norm, FragPosition, viewDir);    
@@ -94,12 +94,10 @@ void main() {
 
     // result += texture(skybox, reflectionVector).rgb;
 
-    // Reflect skybox based on specular highlights
+    // skybox using specular highlights
     vec3 viewDirection = normalize(FragPosition - cameraPosition);
     vec3 reflectionVector = reflect(viewDirection, normalize(Normal));
-    vec3 specularHighlights = SampleSpecular();
-    result += texture(skybox, reflectionVector).rgb * specularHighlights;
-
+    result += texture(skybox, reflectionVector).rgb * SampleSpecular();
 
     // Refraction of skybox
     // vec3 refractionVector = refract(viewDirection, normalize(Normal), refractionRatio);
@@ -135,8 +133,7 @@ vec3 calculateDirectionalLight(DirectionalLight light, vec3 normal, vec3 viewDir
 	float diff = max(dot(normal, lightDir), 0.0);
 	
     // Specular
-	vec3 reflectDir = reflect(-lightDir, normal);
-	float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+    float spec = BlinnPhongSpecular(lightDir, normal, viewDir);
 	
     vec3 diffuseTex  = SampleDiffuse().rgb;
     vec3 specularTex = SampleSpecular();
@@ -158,8 +155,7 @@ vec3 calculatePointLight(PointLight light, vec3 normal, vec3 FragPosition, vec3 
     float diff = max(dot(normal, lightDir), 0.0);
 
     // Specular
-    vec3 reflectDir = reflect(-lightDir, normal);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+    float spec = BlinnPhongSpecular(lightDir, normal, viewDir);
 
     // Attenuation
     float lightDistance = length(light.position - FragPosition);
@@ -194,8 +190,7 @@ vec3 calculateSpotLight(SpotLight light, vec3 normal, vec3 FragPosition, vec3 vi
     float diff = max(dot(normal, lightDir), 0.0);
 
     // Specular
-    vec3 reflectDir = reflect(-lightDir, normal);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+    float spec = BlinnPhongSpecular(lightDir, normal, viewDir);
 
     // Attenuation
     float lightDistance = length(light.position - FragPosition);
@@ -226,4 +221,14 @@ vec3 calculateSpotLight(SpotLight light, vec3 normal, vec3 FragPosition, vec3 vi
     specular *= attenuation * intensity;
     
     return ambient + diffuse + specular;
+}
+
+float PhongSpecular(vec3 lightDir, vec3 normal, vec3 viewDir) {
+    vec3 reflectDir = reflect(-lightDir, normal);
+    return pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+}
+
+float BlinnPhongSpecular(vec3 lightDir, vec3 normal, vec3 viewDir) {
+    vec3 halfDir = normalize(lightDir + viewDir);
+    return pow(max(dot(normal, halfDir), 0.0), material.shininess);
 }

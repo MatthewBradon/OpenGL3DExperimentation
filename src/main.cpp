@@ -77,6 +77,9 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
+    // Multisampling
+    glfwWindowHint(GLFW_SAMPLES, 4);
+
     // Create window
     GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "OpenGLExperimentation", NULL, NULL);
 
@@ -106,6 +109,9 @@ int main() {
     glfwSetKeyCallback(window, key_callback);
 
     glfwSetScrollCallback(window, scroll_callback);
+
+    // Enable multisampling
+    glEnable(GL_MULTISAMPLE);
 
     // Enable depth testing
     glEnable(GL_DEPTH_TEST);
@@ -150,10 +156,31 @@ int main() {
     ditherShader.use();
     ditherShader.setInt("screenTexture", 0);
 
-    // Framebuffer Configuration
+    // Create a multisampled FBO (msaaFBO) for rendering with MSAA, and a single-sample FBO (framebuffer)
+    GLuint msaaFBO;
+    glGenFramebuffers(1, &msaaFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO);
 
+    // Create multisampled color renderbuffer
+    GLuint msaaColorRBO;
+    glGenRenderbuffers(1, &msaaColorRBO);
+    glBindRenderbuffer(GL_RENDERBUFFER, msaaColorRBO);
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_RGB8, WINDOW_WIDTH, WINDOW_HEIGHT);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, msaaColorRBO);
+
+    // Create multisampled depth-stencil renderbuffer
+    GLuint msaaDepthRBO;
+    glGenRenderbuffers(1, &msaaDepthRBO);
+    glBindRenderbuffer(GL_RENDERBUFFER, msaaDepthRBO);
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH24_STENCIL8, WINDOW_WIDTH, WINDOW_HEIGHT);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, msaaDepthRBO);
+
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        std::cout << "ERROR: MSAA Framebuffer is not complete!" << std::endl;
+    }
+
+    // Single-sample framebuffer for post-processing (texture attachment)
     GLuint framebuffer;
-
     glGenFramebuffers(1, &framebuffer);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
 
@@ -162,23 +189,25 @@ int main() {
     glGenTextures(1, &textureColorBuffer);
     glBindTexture(GL_TEXTURE_2D, textureColorBuffer);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-    
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureColorBuffer, 0);
 
-    // Create depth and still attachment renderbuffer
-    GLuint rbo;
-    glGenRenderbuffers(1, &rbo);
-    glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, WINDOW_WIDTH, WINDOW_HEIGHT);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+    // // Create depth and stencil renderbuffer for single-sample FBO (not strictly needed for blit but kept)
+    // GLuint rbo;
+    // glGenRenderbuffers(1, &rbo);
+    // glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+    // glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, WINDOW_WIDTH, WINDOW_HEIGHT);
+    // glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
 
-    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-        std::cout << "ERROR: Framebuffer is not complete!" << std::endl;
-    }
+    // if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+    //     std::cout << "ERROR: Framebuffer is not complete!" << std::endl;
+    // }
 
+    // Unbind
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 
@@ -215,25 +244,25 @@ int main() {
 
 
     // Skybox
-    // std::vector<std::string> faces
-    // {
-    //     "assets/textures/skybox/right.jpg",
-    //     "assets/textures/skybox/left.jpg",
-    //     "assets/textures/skybox/top.jpg",
-    //     "assets/textures/skybox/bottom.jpg",
-    //     "assets/textures/skybox/front.jpg",
-    //     "assets/textures/skybox/back.jpg"
-    // };
-
-        std::vector<std::string> faces
+    std::vector<std::string> faces
     {
-        "assets/textures/Hiyoribeer2.png",
-        "assets/textures/Hiyoribeer2.png",
-        "assets/textures/Hiyoribeer2.png",
-        "assets/textures/Hiyoribeer2.png",
-        "assets/textures/Hiyoribeer2.png",
-        "assets/textures/Hiyoribeer2.png"
+        "assets/textures/skybox/right.jpg",
+        "assets/textures/skybox/left.jpg",
+        "assets/textures/skybox/top.jpg",
+        "assets/textures/skybox/bottom.jpg",
+        "assets/textures/skybox/front.jpg",
+        "assets/textures/skybox/back.jpg"
     };
+
+    //     std::vector<std::string> faces
+    // {
+    //     "assets/textures/Hiyoribeer2.png",
+    //     "assets/textures/Hiyoribeer2.png",
+    //     "assets/textures/Hiyoribeer2.png",
+    //     "assets/textures/Hiyoribeer2.png",
+    //     "assets/textures/Hiyoribeer2.png",
+    //     "assets/textures/Hiyoribeer2.png"
+    // };
 
     GLuint cubemapTexture = createCubeMapTexture(faces);
     std::cout << "Cubemap texture ID: " << cubemapTexture << std::endl;
@@ -284,13 +313,13 @@ int main() {
 
 
     // Point lights
-    // shader.setVec3("pointLights[0].ambient", 0.05f, 0.05f, 0.05f);
-    // shader.setVec3("pointLights[0].diffuse", 0.8f, 0.8f, 0.8f);
-    // shader.setVec3("pointLights[0].specular", 1.0f, 1.0f, 1.0f);
-    // shader.setFloat("pointLights[0].constant", 1.0f);
-    // shader.setFloat("pointLights[0].linear", 0.09f);
-    // shader.setFloat("pointLights[0].quadratic", 0.032f);
-
+    shader.setVec3("pointLights[0].ambient", 0.05f, 0.05f, 0.05f);
+    shader.setVec3("pointLights[0].diffuse", 0.8f, 0.8f, 0.8f);
+    shader.setVec3("pointLights[0].specular", 1.0f, 1.0f, 1.0f);
+    shader.setFloat("pointLights[0].constant", 1.0f);
+    shader.setFloat("pointLights[0].linear", 0.09f);
+    shader.setFloat("pointLights[0].quadratic", 0.032f);
+    shader.setVec3("pointLights[0].position", glm::vec3(0.0f, 5.0f, 0.0f));
 
     skyboxShader.use();
     skyboxShader.setInt("skybox", 0);
@@ -309,7 +338,8 @@ int main() {
         processInput(window);
 
 
-        glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+        // Render to MSAA framebuffer first
+        glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO);
         glEnable(GL_DEPTH_TEST); // Enable because its disabled for rendering the quad
 
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
@@ -319,7 +349,6 @@ int main() {
         shader.use();
         shader.setVec3("objectColor", 1.0f, 1.0f, 1.0f);
 
-        shader.setVec3("viewPos", camera.Position);
         shader.setVec3("cameraPosition", camera.Position);
 
         // Bind cubemap for reflections
@@ -350,26 +379,12 @@ int main() {
         shader.setMat4("view", view);
         shader.setMat4("projection", projection);
 
-
-        // Render the backpack model
-        glm::mat4 model = glm::mat4(1.0f);
-        // model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f)); // Translate it down so it's at the center of the scene
-        // model = glm::scale(model, glm::vec3(0.2f, 0.2f, 0.2f));	// Scale it down
-        // shader.setMat4("model", model);
-        // backpack.Draw(shader);
-
         // Render ground plane
-        model = glm::mat4(1.0f);
+        glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(0.0f, -0.5f, 0.0f));
         shader.setMat4("model", model);
         groundPlane.Draw(shader);
 
-        // // Render ground cube
-        // model = glm::mat4(1.0f);
-        // model = glm::translate(model, glm::vec3(12.0f, -2.0f, 0.0f));
-        // model = glm::scale(model, glm::vec3(3.0f, 3.0f, 20.0f));
-        // shader.setMat4("model", model);
-        // groundCube.Draw(shader);
 
         // Two cubes near each other slightly overlapping on the Z axis
         model = glm::mat4(1.0f);
@@ -382,19 +397,6 @@ int main() {
         shader.setMat4("model", model);
         cube3.Draw(shader);
 
-        glDepthMask(GL_FALSE);
-
-        // Render grass planes
-        shader.use();
-        for (auto position : grassPositions) {
-            model = glm::mat4(1.0f);
-            model = glm::translate(model, position);
-            shader.setMat4("model", model);
-            grassPlane.Draw(shader);
-        }
-
-        glDepthMask(GL_TRUE);
-
         // Draw skybox last
         skyboxShader.use();
         view = glm::mat4(glm::mat3(camera.GetViewMatrix())); // Remove translation from the view matrix
@@ -404,8 +406,16 @@ int main() {
 
         glBindVertexArray(0);
 
-        //  Bind to defualt framebuffer
+        // Resolve MSAA by blitting from msaaFBO to the single-sample framebuffer (framebuffer)
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, msaaFBO);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffer);
+        glReadBuffer(GL_COLOR_ATTACHMENT0);
+        glDrawBuffer(GL_COLOR_ATTACHMENT0);
+        glBlitFramebuffer(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+        // Bind default framebuffer for post-processing pass
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
         glDisable(GL_DEPTH_TEST); // Disable depth test so screen-space quad isn't discarded due to depth test.
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
