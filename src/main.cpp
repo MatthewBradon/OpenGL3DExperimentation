@@ -37,7 +37,7 @@ bool showShadowMap = false;
 float deltaTime = 0.0f; // Time between current frame and last frame
 float lastFrame = 0.0f; // Time of last frame
 
-glm::vec3 directionalLightPosition(-3.0f, 1.5f, -1.0f);
+glm::vec3 directionalLightPosition(0.0f, 1.2f, -3.0f);
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
@@ -356,8 +356,8 @@ int main() {
     float lightSpeed = 4.0f;
     float lightRadius = 1.0f;
 
-    float near_plane = 1.0f, far_plane = 15.0f;
-    glm::mat4 lightProjection = glm::ortho(-20.0f, 20.0f, -20.0f, 20.0f, near_plane, far_plane);
+    float near_plane = 0.1f, far_plane = 7.5f;
+    glm::mat4 lightProjection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane);
     glm::mat4 lightView = glm::lookAt(directionalLightPosition, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     glm::mat4 lightSpaceMatrix = lightProjection * lightView;
 
