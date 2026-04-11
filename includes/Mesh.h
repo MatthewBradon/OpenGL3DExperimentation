@@ -48,10 +48,15 @@ class Mesh {
         }
 
 		void Draw(Shader &shader) {
+            // Reserve low texture units for global samplers (e.g. shadow map, skybox)
+            // and start material textures at a higher unit to avoid clashes.
+            const GLuint MATERIAL_TEXTURE_BASE_UNIT = 4;
+
             GLuint diffuseNr = 0;
             GLuint specularNr = 0;
             for (unsigned int i = 0; i < textures.size(); i++) {
-                glActiveTexture(GL_TEXTURE0 + i);
+                GLuint textureUnit = MATERIAL_TEXTURE_BASE_UNIT + i;
+                glActiveTexture(GL_TEXTURE0 + textureUnit);
                 glBindTexture(GL_TEXTURE_2D, textures[i].id);
 
                 std::string number;
@@ -64,7 +69,7 @@ class Mesh {
                     specularNr++;
                 }
 
-                shader.setInt(("material."+ name + "[" + number + "]").c_str(), i);
+                shader.setInt(("material."+ name + "[" + number + "]").c_str(), textureUnit);
                 
             }
 

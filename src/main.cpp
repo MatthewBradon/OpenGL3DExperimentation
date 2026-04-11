@@ -21,6 +21,8 @@
 
 #define WINDOW_HEIGHT 1080  
 #define WINDOW_WIDTH 1920
+#define SHADOW_WIDTH 1024
+#define SHADOW_HEIGHT 1024
 
 
 
@@ -30,10 +32,12 @@ bool firstMouse = true;
 
 bool flashlightOn = false;
 bool useDither = false;
+bool showShadowMap = false;
 
 float deltaTime = 0.0f; // Time between current frame and last frame
 float lastFrame = 0.0f; // Time of last frame
 
+glm::vec3 directionalLightPosition(-3.0f, 1.5f, -1.0f);
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
@@ -42,7 +46,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 void processInput(GLFWwindow *window);
 void updateDeltaTime();
 void processFlashlight(Shader& shader);
-
+void renderScene(Shader& shader, Plane& groundPlane, Cube& cube2, Cube& cube3);
 
 //Call back function to resize openGL whenever the window changes
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
@@ -123,12 +127,13 @@ int main() {
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
 
-    Shader shader("assets/shaders/shader.vert", "assets/shaders/shader.frag");
+    Shader shader("assets/shaders/shadowShader.vert", "assets/shaders/shadowShader.frag");
     Shader screenShader("assets/shaders/framebufferScreen.vert", "assets/shaders/framebufferScreen.frag");
     Shader ditherShader("assets/shaders/framebufferScreen.vert", "assets/shaders/framebufferScreenDither.frag");
+    Shader debugQuadShader("assets/shaders/debug_quad.vert", "assets/shaders/debug_quad.frag");
     Shader skyboxShader("assets/shaders/skybox.vert", "assets/shaders/skybox.frag");
     Shader lightCubeShader("assets/shaders/light_cube.vert", "assets/shaders/light_cube.frag");
-    
+    Shader depthShader("assets/shaders/lightDepthShader.vert", "assets/shaders/lightDepthShader.frag");
 
 
     // Quad for post processing
@@ -153,6 +158,9 @@ int main() {
 
     ditherShader.use();
     ditherShader.setInt("screenTexture", 0);
+
+    debugQuadShader.use();
+    debugQuadShader.setInt("depthMap", 0);
 
     // Create a multisampled FBO (msaaFBO) for rendering with MSAA, and a single-sample FBO (framebuffer)
     GLuint msaaFBO;
@@ -194,21 +202,42 @@ int main() {
 
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureColorBuffer, 0);
 
-    // // Create depth and stencil renderbuffer for single-sample FBO (not strictly needed for blit but kept)
-    // GLuint rbo;
-    // glGenRenderbuffers(1, &rbo);
-    // glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-    // glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, WINDOW_WIDTH, WINDOW_HEIGHT);
-    // glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
-
-    // if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-    //     std::cout << "ERROR: Framebuffer is not complete!" << std::endl;
-    // }
-
     // Unbind
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 
+    // Shadow mapping setup
+    GLuint shadowMapFBO;
+    glGenFramebuffers(1, &shadowMapFBO);
+    GLuint shadowMap;
+    glGenTextures(1, &shadowMap);
+    glBindTexture(GL_TEXTURE_2D, shadowMap);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, shadowMapFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowMap, 0);
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        std::cout << "ERROR: Shadow Map Framebuffer is not complete!" << std::endl;
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
+
+    // Tell shaders which texture unit will hold the shadow map
+    depthShader.use();
+    depthShader.setInt("shadowMap", 0);
+
+    shader.use();
+    shader.setInt("shadowMap", 0);
 
     // Model
     std::string backpackPath = "assets/objects/backpack/backpack.obj";
@@ -280,7 +309,8 @@ int main() {
 
 
     shader.use();
-    shader.setInt("skybox", 3);  // Use texture unit 3 for cubemap
+    shader.setInt("skybox", 1);  // Use texture unit 1 for cubemap
+    shader.setInt("shadowMap", 0);
 
     // GRASS SETUP
     grassPositions.push_back(glm::vec3(-1.5f, 0.5f, -0.48f));
@@ -300,7 +330,7 @@ int main() {
     // LIGHT SETUP
 
     // Directional light
-    shader.setVec3("dirLight.direction", -0.2f, -1.0f, -0.3f);
+    shader.setVec3("dirLight.direction", directionalLightPosition);
     shader.setVec3("dirLight.ambient", 0.05f, 0.05f, 0.05f);
     shader.setVec3("dirLight.diffuse", 0.4f, 0.4f, 0.4f);
     shader.setVec3("dirLight.specular", 0.5f, 0.5f, 0.5f);
@@ -326,6 +356,17 @@ int main() {
     float lightSpeed = 4.0f;
     float lightRadius = 1.0f;
 
+    float near_plane = 1.0f, far_plane = 15.0f;
+    glm::mat4 lightProjection = glm::ortho(-20.0f, 20.0f, -20.0f, 20.0f, near_plane, far_plane);
+    glm::mat4 lightView = glm::lookAt(directionalLightPosition, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    glm::mat4 lightSpaceMatrix = lightProjection * lightView;
+
+    debugQuadShader.use();
+    debugQuadShader.setFloat("near_plane", near_plane);
+    debugQuadShader.setFloat("far_plane", far_plane);
+
+    
+
     // RENDER LOOP
     while(!glfwWindowShouldClose(window)) {
 
@@ -334,10 +375,23 @@ int main() {
         //Handle input
         processInput(window);
 
+        glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+        glBindFramebuffer(GL_FRAMEBUFFER, shadowMapFBO);
+        glClear(GL_DEPTH_BUFFER_BIT);
+        glEnable(GL_DEPTH_TEST); // Enable because its disabled for rendering the quad
+        depthShader.use();
+        depthShader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
+
+        // Render scene from light's perspective
+        renderScene(depthShader, groundPlane, cube2, cube3);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+        glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
         // Render to MSAA framebuffer first
         glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO);
-        glEnable(GL_DEPTH_TEST); // Enable because its disabled for rendering the quad
+        
 
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
@@ -348,18 +402,23 @@ int main() {
 
         shader.setVec3("cameraPosition", camera.Position);
 
-        // Bind cubemap for reflections
-        glActiveTexture(GL_TEXTURE3);
+    // Bind cubemap for reflections (reserved unit 1)
+    glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
+
+    // Bind shadow map to texture unit 0 for sampling in the shader
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, shadowMap);
+    shader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
 
 
         // Uniforms for the 4 point lights
         // point light 1
-        lightAngle += lightSpeed * deltaTime;
-        float x = lightRadius * cos(lightAngle);
-        float z = lightRadius * sin(lightAngle);
-        pointLight1.position = glm::vec3(x, 3.5f, z);
-        shader.setVec3("pointLights[0].position", pointLight1.position);
+        // lightAngle += lightSpeed * deltaTime;
+        // float x = lightRadius * cos(lightAngle);
+        // float z = lightRadius * sin(lightAngle);
+        // pointLight1.position = glm::vec3(x, 3.5f, z);
+        // shader.setVec3("pointLights[0].position", pointLight1.position);
         // Draw a small blue cube at the point light position for 
         
 
@@ -375,24 +434,22 @@ int main() {
         view = camera.GetViewMatrix();
         shader.setMat4("view", view);
         shader.setMat4("projection", projection);
+        
+
 
         // Render ground plane
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(0.0f, -0.5f, 0.0f));
-        shader.setMat4("model", model);
-        groundPlane.Draw(shader);
+        renderScene(shader, groundPlane, cube2, cube3);
 
+    // Draw a small debug cube at the directional light pseudo-position
+    lightCubeShader.use();
+    lightCubeShader.setMat4("view", view);
+    lightCubeShader.setMat4("projection", projection);
 
-        // Two cubes near each other slightly overlapping on the Z axis
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(-2.0f, 0.0f, 0.0f));
-        shader.setMat4("model", model);
-        cube2.Draw(shader);
-
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(2.0f, 0.0f, 0.3f));
-        shader.setMat4("model", model);
-        cube3.Draw(shader);
+    glm::mat4 lightDebugModel = glm::mat4(1.0f);
+    lightDebugModel = glm::translate(lightDebugModel, directionalLightPosition);
+    lightDebugModel = glm::scale(lightDebugModel, glm::vec3(0.2f));
+    lightCubeShader.setMat4("model", lightDebugModel);
+    lightCube.Draw(lightCubeShader);
 
         
         // pointLight1.drawDebugCube(lightCubeShader, view, projection);
@@ -422,15 +479,21 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT);
 
 
-        if (useDither) {
-            ditherShader.use();
+        if (showShadowMap) {
+            debugQuadShader.use();
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, shadowMap);
         } else {
-            screenShader.use();
+            if (useDither) {
+                ditherShader.use();
+            } else {
+                screenShader.use();
+            }
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, textureColorBuffer);
         }
 
         glBindVertexArray(quadVAO);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, textureColorBuffer);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
 
@@ -513,4 +576,23 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     if (key == GLFW_KEY_V && action == GLFW_PRESS) {
         useDither = !useDither;
     }
+    if (key == GLFW_KEY_M && action == GLFW_PRESS) {
+        showShadowMap = !showShadowMap;
+    }
+}
+
+void renderScene(Shader& shader, Plane& groundPlane, Cube& cube2, Cube& cube3) {
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(0.0f, -0.5f, 0.0f));
+    shader.setMat4("model", model);
+    groundPlane.Draw(shader);
+
+    model = glm::translate(glm::mat4(1.0f), glm::vec3(2.0f, 0.0f, 0.0f));
+    shader.setMat4("model", model);
+    cube2.Draw(shader);
+
+    model = glm::translate(glm::mat4(1.0f), glm::vec3(-2.0f, 0.0f, 0.0f));
+    shader.setMat4("model", model);
+    cube3.Draw(shader);
+
 }
