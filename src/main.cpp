@@ -33,11 +33,13 @@ bool firstMouse = true;
 bool flashlightOn = false;
 bool useDither = false;
 bool showShadowMap = false;
+bool showDirectionalLightDebug = false;
 
 float deltaTime = 0.0f; // Time between current frame and last frame
 float lastFrame = 0.0f; // Time of last frame
 
-glm::vec3 directionalLightPosition(0.0f, 1.2f, -3.0f);
+// Pure direction vector for directional light (direction light rays travel)
+glm::vec3 directionalLightDirection(-0.6f, -0.3f, -0.45f);
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
@@ -47,6 +49,7 @@ void processInput(GLFWwindow *window);
 void updateDeltaTime();
 void processFlashlight(Shader& shader);
 void renderScene(Shader& shader, Plane& groundPlane, Cube& cube2, Cube& cube3);
+void directionalDebugArrow(Shader& lightCubeShader, const glm::mat4& view, const glm::mat4& projection, const glm::vec3& direction, Cube& lightCube);
 
 //Call back function to resize openGL whenever the window changes
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
@@ -312,25 +315,13 @@ int main() {
     shader.setInt("skybox", 1);  // Use texture unit 1 for cubemap
     shader.setInt("shadowMap", 0);
 
-    // GRASS SETUP
-    grassPositions.push_back(glm::vec3(-1.5f, 0.5f, -0.48f));
-    grassPositions.push_back(glm::vec3( 1.5f, 0.5f, 0.51f));
-    grassPositions.push_back(glm::vec3( 0.0f, 0.5f, 0.7f));
-    grassPositions.push_back(glm::vec3(-0.3f, 0.5f, -2.3f));
-    grassPositions.push_back(glm::vec3( 0.5f, 0.5f, -0.6f));
 
-    int grassTextureDiffuse = createTexture("assets/textures/grass.png", false);
-    std::vector<Texture> grassTextures = {
-        Texture(grassTextureDiffuse, "texture_diffuse", "grass.png"),
-    };
-
-    Plane grassPlane(glm::vec3(1.0f, 0.0f, 0.0f), 0.0f, grassTextures, 1.0f);
     
 
     // LIGHT SETUP
 
     // Directional light
-    shader.setVec3("dirLight.direction", directionalLightPosition);
+    shader.setVec3("dirLight.direction", glm::normalize(directionalLightDirection));
     shader.setVec3("dirLight.ambient", 0.05f, 0.05f, 0.05f);
     shader.setVec3("dirLight.diffuse", 0.4f, 0.4f, 0.4f);
     shader.setVec3("dirLight.specular", 0.5f, 0.5f, 0.5f);
@@ -345,8 +336,8 @@ int main() {
 
 
     // Point lights
-    PointLight pointLight1(glm::vec3(0.0f, 3.5f, 0.0f), glm::vec3(0.05f), glm::vec3(0.8f), glm::vec3(1.0f), 1.0f, 0.09f, 0.032f);
-    pointLight1.setShaderUniforms(shader, 0);
+    // PointLight pointLight1(glm::vec3(0.0f, 3.5f, 0.0f), glm::vec3(0.05f), glm::vec3(0.8f), glm::vec3(1.0f), 1.0f, 0.09f, 0.032f);
+    // pointLight1.setShaderUniforms(shader, 0);
 
     skyboxShader.use();
     skyboxShader.setInt("skybox", 0);
@@ -356,9 +347,20 @@ int main() {
     float lightSpeed = 4.0f;
     float lightRadius = 1.0f;
 
-    float near_plane = 0.1f, far_plane = 7.5f;
-    glm::mat4 lightProjection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane);
-    glm::mat4 lightView = glm::lookAt(directionalLightPosition, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    // Shadow camera frustum for directional light (must cover scene extents)
+    float near_plane = 0.1f, far_plane = 60.0f;
+    glm::mat4 lightProjection = glm::ortho(-20.0f, 20.0f, -20.0f, 20.0f, near_plane, far_plane);
+
+    // For directional shadows, derive a virtual light camera position from direction
+    glm::vec3 sceneCenter(0.0f, 0.0f, 0.0f);
+    glm::vec3 lightDir = glm::normalize(directionalLightDirection);
+    float lightDistance = 20.0f;
+    glm::vec3 lightVirtualPos = sceneCenter - lightDir * lightDistance;
+    glm::vec3 lightUp = (glm::abs(glm::dot(lightDir, glm::vec3(0.0f, 1.0f, 0.0f))) > 0.99f)
+        ? glm::vec3(0.0f, 0.0f, 1.0f)
+        : glm::vec3(0.0f, 1.0f, 0.0f);
+
+    glm::mat4 lightView = glm::lookAt(lightVirtualPos, sceneCenter, lightUp);
     glm::mat4 lightSpaceMatrix = lightProjection * lightView;
 
     debugQuadShader.use();
@@ -372,18 +374,25 @@ int main() {
 
         updateDeltaTime();
 
-        //Handle input
         processInput(window);
 
         glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
         glBindFramebuffer(GL_FRAMEBUFFER, shadowMapFBO);
         glClear(GL_DEPTH_BUFFER_BIT);
-        glEnable(GL_DEPTH_TEST); // Enable because its disabled for rendering the quad
+
+        // Shadow pass state: keep back-face culling and use polygon offset to reduce self-shadow acne
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glPolygonOffset(2.0f, 4.0f);
+
         depthShader.use();
         depthShader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
 
+        
+
         // Render scene from light's perspective
         renderScene(depthShader, groundPlane, cube2, cube3);
+
+        glDisable(GL_POLYGON_OFFSET_FILL);
 
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -402,25 +411,15 @@ int main() {
 
         shader.setVec3("cameraPosition", camera.Position);
 
-    // Bind cubemap for reflections (reserved unit 1)
-    glActiveTexture(GL_TEXTURE1);
+        // Bind cubemap for reflections (reserved unit 1)
+        glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
 
-    // Bind shadow map to texture unit 0 for sampling in the shader
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, shadowMap);
-    shader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
+        // Bind shadow map to texture unit 0 for sampling in the shader
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, shadowMap);
+        shader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
 
-
-        // Uniforms for the 4 point lights
-        // point light 1
-        // lightAngle += lightSpeed * deltaTime;
-        // float x = lightRadius * cos(lightAngle);
-        // float z = lightRadius * sin(lightAngle);
-        // pointLight1.position = glm::vec3(x, 3.5f, z);
-        // shader.setVec3("pointLights[0].position", pointLight1.position);
-        // Draw a small blue cube at the point light position for 
-        
 
         // Update Flashlight
         shader.setVec3("spotLight.position", camera.Position);
@@ -440,21 +439,11 @@ int main() {
         // Render ground plane
         renderScene(shader, groundPlane, cube2, cube3);
 
-    // Draw a small debug cube at the directional light pseudo-position
-    lightCubeShader.use();
-    lightCubeShader.setMat4("view", view);
-    lightCubeShader.setMat4("projection", projection);
+        if (showDirectionalLightDebug) {
+            directionalDebugArrow(lightCubeShader, view, projection, directionalLightDirection, lightCube);
+        }
 
-    glm::mat4 lightDebugModel = glm::mat4(1.0f);
-    lightDebugModel = glm::translate(lightDebugModel, directionalLightPosition);
-    lightDebugModel = glm::scale(lightDebugModel, glm::vec3(0.2f));
-    lightCubeShader.setMat4("model", lightDebugModel);
-    lightCube.Draw(lightCubeShader);
 
-        
-        // pointLight1.drawDebugCube(lightCubeShader, view, projection);
-
-    
         // Draw skybox last
         skyboxShader.use();
         view = glm::mat4(glm::mat3(camera.GetViewMatrix())); // Remove translation from the view matrix
@@ -496,7 +485,7 @@ int main() {
         glBindVertexArray(quadVAO);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-
+        glEnable(GL_DEPTH_TEST); // Re-enable depth testing for next frame
         // Check call events and swap buffers
         glfwPollEvents();
         glfwSwapBuffers(window);
@@ -579,6 +568,9 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     if (key == GLFW_KEY_M && action == GLFW_PRESS) {
         showShadowMap = !showShadowMap;
     }
+    if (key == GLFW_KEY_L && action == GLFW_PRESS) {
+        showDirectionalLightDebug = !showDirectionalLightDebug;
+    }
 }
 
 void renderScene(Shader& shader, Plane& groundPlane, Cube& cube2, Cube& cube3) {
@@ -596,3 +588,29 @@ void renderScene(Shader& shader, Plane& groundPlane, Cube& cube2, Cube& cube3) {
     cube3.Draw(shader);
 
 }
+
+void directionalDebugArrow(Shader& lightCubeShader, const glm::mat4& view, const glm::mat4& projection, const glm::vec3& direction, Cube& lightCube) {
+    // Single long rectangular prism aligned with directional light direction
+    glm::vec3 forward = glm::normalize(direction);
+    glm::vec3 up = (glm::abs(glm::dot(forward, glm::vec3(0.0f, 1.0f, 0.0f))) > 0.99f)
+        ? glm::vec3(0.0f, 0.0f, 1.0f)
+        : glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 right = glm::normalize(glm::cross(up, forward));
+    up = glm::normalize(glm::cross(forward, right));
+
+    glm::mat4 rotation(1.0f);
+    rotation[0] = glm::vec4(right, 0.0f);
+    rotation[1] = glm::vec4(up, 0.0f);
+    rotation[2] = glm::vec4(forward, 0.0f);
+
+    glm::vec3 origin(0.0f, 2.0f, 0.0f);
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), origin) * rotation;
+    model = model * glm::scale(glm::mat4(1.0f), glm::vec3(0.08f, 0.08f, 1.4f));
+
+    lightCubeShader.use();
+    lightCubeShader.setMat4("view", view);
+    lightCubeShader.setMat4("projection", projection);
+    lightCubeShader.setMat4("model", model);
+    lightCube.Draw(lightCubeShader);
+}
+

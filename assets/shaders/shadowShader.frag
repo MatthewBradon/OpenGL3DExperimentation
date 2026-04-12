@@ -74,7 +74,7 @@ vec3 calculateReflection(vec3 viewDir, vec3 normal);
 float LinearizeDepth(float depth);
 float PhongSpecular(vec3 lightDir, vec3 normal, vec3 viewDir);
 float BlinnPhongSpecular(vec3 lightDir, vec3 normal, vec3 viewDir);
-float ShadowCalculation(vec4 fragPosLightSpace);
+float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir);
 float LinearizeDepth(float depth);
 
 
@@ -90,9 +90,9 @@ void main() {
 
     vec3 result = calculateDirectionalLight(dirLight, norm, viewDir);
 
-    for(int i = 0; i < NR_POINT_LIGHTS; i++) {
-        result += calculatePointLight(pointLights[i], norm, fs_in.FragPos, viewDir);
-    }
+    // for(int i = 0; i < NR_POINT_LIGHTS; i++) {
+    //     result += calculatePointLight(pointLights[i], norm, fs_in.FragPos, viewDir);
+    // }
 
 
     result += calculateSpotLight(spotLight, norm, fs_in.FragPos, viewDir);    
@@ -100,16 +100,6 @@ void main() {
     // skybox using specular highlights
     // vec3 viewDirection = normalize(fs_in.FragPos - cameraPosition);
     // result += calculateReflection(viewDirection, fs_in.Normal) * SampleSpecular();
-
-
-    // Shadow calculation
-    float shadow = ShadowCalculation(fs_in.FragPosLightSpace);
-
-    // Keep some minimum lighting in shadowed areas (not pure black)
-    float minShadowLight = 0.25;
-    float shadowLighting = mix(1.0, minShadowLight, shadow);
-    result *= shadowLighting;
-
 
     FragColor = vec4(result, diffuseColor.a);
 }
@@ -134,7 +124,7 @@ vec3 SampleSpecular() {
 
 
 vec3 calculateDirectionalLight(DirectionalLight light, vec3 normal, vec3 viewDir) {
-    // Make the light direction from the fragment towards the light
+    // Directional light uses a constant direction for all fragments
     vec3 lightDir = normalize(-light.direction);
 	
     // Diffuse
@@ -152,7 +142,12 @@ vec3 calculateDirectionalLight(DirectionalLight light, vec3 normal, vec3 viewDir
 	vec3 diffuse = light.diffuse * diff * diffuseTex;
 	vec3 specular = light.specular * spec * specularTex;
 	
-    return ambient + diffuse + specular;
+    vec3 result = ambient + diffuse + specular;
+
+    // Shadow calculation
+    float shadow = ShadowCalculation(fs_in.FragPosLightSpace, normal, lightDir);
+
+    return (ambient + (1.0 - shadow) * (diffuse + specular));
 }
 
 vec3 calculatePointLight(PointLight light, vec3 normal, vec3 FragPosition, vec3 viewDir) {
@@ -241,16 +236,33 @@ float BlinnPhongSpecular(vec3 lightDir, vec3 normal, vec3 viewDir) {
     return pow(max(dot(normal, halfDir), 0.0), material.shininess);
 }
 
-float ShadowCalculation(vec4 fragPosLightSpace) {
+float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir) {
     // Perform perspective divide
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     // Transform to [0,1] range
     projCoords = projCoords * 0.5 + 0.5;
 
+    // Outside the light frustum/projection should be treated as lit
+    if (projCoords.z > 1.0) return 0.0;
+    if (projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0) return 0.0;
+
     float closestDepth = texture(shadowMap, projCoords.xy).r; // Get depth from shadow map
     float currentDepth = projCoords.z;
-    // Check if current fragment is in shadow
-    float shadow = currentDepth - 0.005 > closestDepth ? 1.0 : 0.0;
+
+    // Bias to prevent shadow acne
+    float bias = max(0.0005 * (1.0 - dot(normal, lightDir)), 0.00005);
+
+    float shadow = 0.0;
+    // PCF (Percentage Closer Filtering) for softer shadows
+    vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+    for(int x = -1; x <= 1; ++x) {
+        for(int y = -1; y <= 1; ++y) {
+            float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r; 
+            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;        
+        }
+    }
+    shadow /= 9.0;
+    
     return shadow;
 }
 
