@@ -1,8 +1,8 @@
 #version 330 core
 
 #define NR_POINT_LIGHTS 1
-#define MAX_DIFFUSE 8
-#define MAX_SPECULAR 8
+#define MAX_DIFFUSE 12
+#define MAX_SPECULAR 3
 
 out vec4 FragColor;
 
@@ -62,7 +62,7 @@ uniform SpotLight spotLight;
 uniform vec3 objectColor;
 uniform vec3 cameraPosition;
 uniform sampler2D shadowMap;
-uniform samplerCube skybox;
+// uniform samplerCube skybox;
 
 vec4 SampleDiffuse();
 vec3 SampleSpecular();
@@ -272,12 +272,12 @@ float LinearizeDepth(float depth) {
     return (2.0 * near) / (far + near - depth * (far - near));
 }
 
-vec3 calculateRefraction(vec3 viewDir, vec3 normal ) {
-    vec3 refractionVector = refract(viewDir, normalize(normal), refractionRatio);
-    return texture(skybox, refractionVector).rgb;
-}
+// vec3 calculateRefraction(vec3 viewDir, vec3 normal ) {
+//     vec3 refractionVector = refract(viewDir, normalize(normal), refractionRatio);
+//     return texture(skybox, refractionVector).rgb;
+// }
 
-vec3 calculateReflection(vec3 viewDir, vec3 normal) {
-    vec3 reflectionVector = reflect(viewDir, normalize(normal));
-    return texture(skybox, reflectionVector).rgb;
-}
+// vec3 calculateReflection(vec3 viewDir, vec3 normal) {
+//     vec3 reflectionVector = reflect(viewDir, normalize(normal));
+//     return texture(skybox, reflectionVector).rgb;
+// }

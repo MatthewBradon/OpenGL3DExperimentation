@@ -24,7 +24,8 @@
 #define SHADOW_WIDTH 1024
 #define SHADOW_HEIGHT 1024
 
-
+int fbWidth = WINDOW_WIDTH;
+int fbHeight = WINDOW_HEIGHT;
 
 Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
 float lastX = WINDOW_WIDTH / 2.0f, lastY = WINDOW_HEIGHT / 2.0f;
@@ -50,12 +51,6 @@ void updateDeltaTime();
 void processFlashlight(Shader& shader);
 void renderScene(Shader& shader, Plane& groundPlane, Cube& cube2, Cube& cube3);
 void directionalDebugArrow(Shader& lightCubeShader, const glm::mat4& view, const glm::mat4& projection, const glm::vec3& direction, Cube& lightCube);
-
-//Call back function to resize openGL whenever the window changes
-void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
-    glViewport(0, 0, width, height);
-}
-
 
 
 std::vector<glm::vec3> grassPositions;
@@ -96,6 +91,9 @@ int main() {
 
     //
     glfwMakeContextCurrent(window);
+
+    // Query actual framebuffer size (Retina/high-DPI aware) before creating FBO attachments.
+    glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
 
     // Load OpenGL functions through glad 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
@@ -174,14 +172,14 @@ int main() {
     GLuint msaaColorRBO;
     glGenRenderbuffers(1, &msaaColorRBO);
     glBindRenderbuffer(GL_RENDERBUFFER, msaaColorRBO);
-    glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_RGB8, WINDOW_WIDTH, WINDOW_HEIGHT);
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_RGB8, fbWidth, fbHeight);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, msaaColorRBO);
 
     // Create multisampled depth-stencil renderbuffer
     GLuint msaaDepthRBO;
     glGenRenderbuffers(1, &msaaDepthRBO);
     glBindRenderbuffer(GL_RENDERBUFFER, msaaDepthRBO);
-    glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH24_STENCIL8, WINDOW_WIDTH, WINDOW_HEIGHT);
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH24_STENCIL8, fbWidth, fbHeight);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, msaaDepthRBO);
 
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
@@ -197,7 +195,7 @@ int main() {
     GLuint textureColorBuffer;
     glGenTextures(1, &textureColorBuffer);
     glBindTexture(GL_TEXTURE_2D, textureColorBuffer);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, fbWidth, fbHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -243,8 +241,8 @@ int main() {
     shader.setInt("shadowMap", 0);
 
     // Model
-    std::string backpackPath = "assets/objects/backpack/backpack.obj";
-    Model backpack(std::filesystem::absolute(backpackPath).string());
+    // std::string backpackPath = "assets/objects/backpack/backpack.obj";
+    // Model backpack(std::filesystem::absolute(backpackPath).string());
    
 
     int planeTextureDiffuse = createTexture("assets/textures/marble.jpg");
@@ -370,7 +368,28 @@ int main() {
     
 
     // RENDER LOOP
+    int lastFbWidth = fbWidth;
+    int lastFbHeight = fbHeight;
+
     while(!glfwWindowShouldClose(window)) {
+
+        // Keep offscreen attachments in sync with framebuffer size when the window changes.
+        if (fbWidth != lastFbWidth || fbHeight != lastFbHeight) {
+            glBindRenderbuffer(GL_RENDERBUFFER, msaaColorRBO);
+            glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_RGB8, fbWidth, fbHeight);
+
+            glBindRenderbuffer(GL_RENDERBUFFER, msaaDepthRBO);
+            glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH24_STENCIL8, fbWidth, fbHeight);
+
+            glBindTexture(GL_TEXTURE_2D, textureColorBuffer);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, fbWidth, fbHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+
+            glBindTexture(GL_TEXTURE_2D, 0);
+            glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+            lastFbWidth = fbWidth;
+            lastFbHeight = fbHeight;
+        }
 
         updateDeltaTime();
 
@@ -396,7 +415,7 @@ int main() {
 
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-        glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+        glViewport(0, 0, fbWidth, fbHeight);
 
         // Render to MSAA framebuffer first
         glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO);
@@ -429,12 +448,11 @@ int main() {
 
 
         // view/projection transformations
-        projection = glm::perspective(glm::radians(camera.Zoom), (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.1f, 100.0f);
+        projection = glm::perspective(glm::radians(camera.Zoom), (float)fbWidth / (float)fbHeight, 0.1f, 100.0f);
         view = camera.GetViewMatrix();
         shader.setMat4("view", view);
         shader.setMat4("projection", projection);
         
-
 
         // Render ground plane
         renderScene(shader, groundPlane, cube2, cube3);
@@ -458,10 +476,11 @@ int main() {
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffer);
         glReadBuffer(GL_COLOR_ATTACHMENT0);
         glDrawBuffer(GL_COLOR_ATTACHMENT0);
-        glBlitFramebuffer(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        glBlitFramebuffer(0, 0, fbWidth, fbHeight, 0, 0, fbWidth, fbHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
         // Bind default framebuffer for post-processing pass
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glViewport(0, 0, fbWidth, fbHeight);
 
         glDisable(GL_DEPTH_TEST); // Disable depth test so screen-space quad isn't discarded due to depth test.
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -614,3 +633,11 @@ void directionalDebugArrow(Shader& lightCubeShader, const glm::mat4& view, const
     lightCube.Draw(lightCubeShader);
 }
 
+//Call back function to resize openGL whenever the window changes
+void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+
+    fbWidth = width;
+    fbHeight = height;
+
+    glViewport(0, 0, fbWidth, fbHeight);
+}

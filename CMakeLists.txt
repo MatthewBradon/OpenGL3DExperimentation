@@ -25,11 +25,19 @@ set_target_properties(OpenGL3DExperimentation PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "${CMAKE_SOURCE_DIR}"
 )
 
+if (WIN32)
 target_include_directories(OpenGL3DExperimentation PRIVATE
     ${CMAKE_SOURCE_DIR}/build/vcpkg_installed/x64-windows/include
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/includes
 )
+elseif(APPLE)
+target_include_directories(OpenGL3DExperimentation PRIVATE
+    ${CMAKE_SOURCE_DIR}/build/vcpkg_installed/arm64-osx/include
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/includes
+)
+endif()
 
 # Link libraries
 target_link_libraries(OpenGL3DExperimentation PRIVATE
