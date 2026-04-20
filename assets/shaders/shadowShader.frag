@@ -31,6 +31,7 @@ struct PointLight {
     vec3 ambient;
     vec3 diffuse;
     vec3 specular;
+    float far_plane;
 };
 
 struct SpotLight {
@@ -62,7 +63,10 @@ uniform SpotLight spotLight;
 uniform vec3 objectColor;
 uniform vec3 cameraPosition;
 uniform sampler2D shadowMap;
-// uniform samplerCube skybox;
+uniform samplerCube skybox;
+// Single global cube shadow map for point lights
+uniform samplerCube shadowCubeMap;
+uniform bool showPointShadowMap;
 
 vec4 SampleDiffuse();
 vec3 SampleSpecular();
@@ -75,6 +79,7 @@ float LinearizeDepth(float depth);
 float PhongSpecular(vec3 lightDir, vec3 normal, vec3 viewDir);
 float BlinnPhongSpecular(vec3 lightDir, vec3 normal, vec3 viewDir);
 float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir);
+float ShadowCalculationPointLight(vec3 fragPos, PointLight light);
 float LinearizeDepth(float depth);
 
 
@@ -90,9 +95,9 @@ void main() {
 
     vec3 result = calculateDirectionalLight(dirLight, norm, viewDir);
 
-    // for(int i = 0; i < NR_POINT_LIGHTS; i++) {
-    //     result += calculatePointLight(pointLights[i], norm, fs_in.FragPos, viewDir);
-    // }
+    for(int i = 0; i < NR_POINT_LIGHTS; i++) {
+        result += calculatePointLight(pointLights[i], norm, fs_in.FragPos, viewDir);
+    }
 
 
     result += calculateSpotLight(spotLight, norm, fs_in.FragPos, viewDir);    
@@ -101,7 +106,9 @@ void main() {
     // vec3 viewDirection = normalize(fs_in.FragPos - cameraPosition);
     // result += calculateReflection(viewDirection, fs_in.Normal) * SampleSpecular();
 
-    FragColor = vec4(result, diffuseColor.a);
+    if (!showPointShadowMap) {
+        FragColor = vec4(result, diffuseColor.a);
+    }
 }
 
 
@@ -180,8 +187,11 @@ vec3 calculatePointLight(PointLight light, vec3 normal, vec3 FragPosition, vec3 
     ambient *= attenuation;
     diffuse *= attenuation;
     specular *= attenuation;
+
+    float shadow = ShadowCalculationPointLight(FragPosition, light);
+
     
-    return ambient + diffuse + specular;
+    return ambient + (1.0 - shadow) * (diffuse + specular);
 }
 
 
@@ -271,6 +281,23 @@ float LinearizeDepth(float depth) {
     float far = 100.0;
     return (2.0 * near) / (far + near - depth * (far - near));
 }
+
+
+float ShadowCalculationPointLight(vec3 fragPos, PointLight light) {
+    vec3 fragToLight = fragPos - light.position;
+    float closestDepth = texture(shadowCubeMap, fragToLight).r;
+    closestDepth *= light.far_plane; // Convert from [0,1] back [0, far_plane] (world units)
+
+    float currentDepth = length(fragToLight);
+    float bias = 0.05; // Bias to prevent shadow acne
+
+    float shadow = 0.0;
+
+    shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0;
+    FragColor = vec4(vec3(closestDepth / light.far_plane), 1.0);
+    return shadow;
+}
+
 
 // vec3 calculateRefraction(vec3 viewDir, vec3 normal ) {
 //     vec3 refractionVector = refract(viewDir, normalize(normal), refractionRatio);

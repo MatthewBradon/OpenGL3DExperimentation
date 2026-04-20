@@ -35,6 +35,7 @@ bool flashlightOn = false;
 bool useDither = false;
 bool showShadowMap = false;
 bool showDirectionalLightDebug = false;
+bool showPointShadowMap = false;
 
 float deltaTime = 0.0f; // Time between current frame and last frame
 float lastFrame = 0.0f; // Time of last frame
@@ -135,7 +136,7 @@ int main() {
     Shader skyboxShader("assets/shaders/skybox.vert", "assets/shaders/skybox.frag");
     Shader lightCubeShader("assets/shaders/light_cube.vert", "assets/shaders/light_cube.frag");
     Shader depthShader("assets/shaders/lightDepthShader.vert", "assets/shaders/lightDepthShader.frag");
-
+    Shader pointDepthShader("assets/shaders/pointShadowsDepth.vert", "assets/shaders/pointShadowsDepth.frag", "assets/shaders/pointShadowsDepth.geom");
 
     // Quad for post processing
     GLuint quadVAO, quadVBO;
@@ -232,6 +233,32 @@ int main() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 
+    
+    // Omni-directional shadow cubemap
+    GLuint shadowCubemapFBO;
+    glGenFramebuffers(1, &shadowCubemapFBO);
+    
+    GLuint shadowCubemap;
+    glGenTextures(1, &shadowCubemap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, shadowCubemap);
+
+    for (unsigned int i = 0; i < 6; ++i) {
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    }
+
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, shadowCubemapFBO);
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, shadowCubemap, 0);
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
 
     // Tell shaders which texture unit will hold the shadow map
     depthShader.use();
@@ -310,8 +337,9 @@ int main() {
 
 
     shader.use();
-    shader.setInt("skybox", 1);  // Use texture unit 1 for cubemap
     shader.setInt("shadowMap", 0);
+    shader.setInt("skybox", 1);  // Use texture unit 1 for cubemap
+    shader.setInt("shadowCubeMap", 2); // Use texture unit 2 for point light shadow cubemap
 
 
     
@@ -333,9 +361,16 @@ int main() {
     shader.setFloat("spotLight.quadratic", 0.032f);
 
 
+    float aspect = (float)SHADOW_WIDTH / (float)SHADOW_HEIGHT;
+    float near = 0.1f;
+    float far = 25.0f;
+
     // Point lights
-    // PointLight pointLight1(glm::vec3(0.0f, 3.5f, 0.0f), glm::vec3(0.05f), glm::vec3(0.8f), glm::vec3(1.0f), 1.0f, 0.09f, 0.032f);
-    // pointLight1.setShaderUniforms(shader, 0);
+    PointLight pointLight1(0, glm::vec3(0.0f, 3.5f, 0.0f), glm::vec3(0.05f), glm::vec3(0.8f), glm::vec3(1.0f), 1.0f, 0.09f, 0.032f, aspect, near, far);
+    pointLight1.setShaderUniforms(shader);
+
+    // Height for point light: half the cube height (approx 0.5)
+    float pointLightHeight = 1.2f;
 
     skyboxShader.use();
     skyboxShader.setInt("skybox", 0);
@@ -395,6 +430,12 @@ int main() {
 
         processInput(window);
 
+        // Update moving lights: move point light in a circle around origin on the XZ plane
+        lightAngle += deltaTime * lightSpeed;
+        float newX = cos(lightAngle) * lightRadius;
+        // float newZ = sin(lightAngle) * lightRadius;
+        pointLight1.updatePosition(glm::vec3(newX, pointLightHeight, pointLight1.position.z));
+
         glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
         glBindFramebuffer(GL_FRAMEBUFFER, shadowMapFBO);
         glClear(GL_DEPTH_BUFFER_BIT);
@@ -410,6 +451,18 @@ int main() {
 
         // Render scene from light's perspective
         renderScene(depthShader, groundPlane, cube2, cube3);
+        
+        pointDepthShader.use();
+
+        // Update depth shader uniforms after moving light and recomputing shadow transforms
+        pointLight1.setDepthShaderUniforms(pointDepthShader);
+        glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, shadowCubemapFBO);
+        glClear(GL_DEPTH_BUFFER_BIT);
+
+        // Render scene from light's perspective
+        renderScene(pointDepthShader, groundPlane, cube2, cube3);
 
         glDisable(GL_POLYGON_OFFSET_FILL);
 
@@ -426,8 +479,7 @@ int main() {
 
         // Render the scene
         shader.use();
-        shader.setVec3("objectColor", 1.0f, 1.0f, 1.0f);
-
+        shader.setBool("showPointShadowMap", showPointShadowMap);
         shader.setVec3("cameraPosition", camera.Position);
 
         // Bind cubemap for reflections (reserved unit 1)
@@ -453,13 +505,25 @@ int main() {
         shader.setMat4("view", view);
         shader.setMat4("projection", projection);
         
+        // Lighting uniforms that may change per-frame
+        pointLight1.setShaderUniforms(shader);
+        pointLight1.bindShadowMap(shadowCubemap);
+
 
         // Render ground plane
         renderScene(shader, groundPlane, cube2, cube3);
 
         if (showDirectionalLightDebug) {
             directionalDebugArrow(lightCubeShader, view, projection, directionalLightDirection, lightCube);
+
+            // Draw the debug cube for the point light (after view/projection are set)
+            lightCubeShader.use();
+            lightCubeShader.setMat4("view", view);
+            lightCubeShader.setMat4("projection", projection);
+            pointLight1.drawDebugCube(lightCubeShader, view, projection);
         }
+
+        
 
 
         // Draw skybox last
@@ -589,6 +653,9 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     }
     if (key == GLFW_KEY_L && action == GLFW_PRESS) {
         showDirectionalLightDebug = !showDirectionalLightDebug;
+    }
+    if (key == GLFW_KEY_P && action == GLFW_PRESS) {
+        showPointShadowMap = !showPointShadowMap;
     }
 }
 

@@ -38,6 +38,38 @@ class Shader {
             glDeleteShader(fragmentShader);
         }
 
+        // Overloaded constructor for geometry shader support
+        Shader(const char* vertexPath, const char* fragmentPath, const char* geometryPath) {
+            GLuint vertexShader = createShader(vertexPath, GL_VERTEX_SHADER);
+            GLuint fragmentShader = createShader(fragmentPath, GL_FRAGMENT_SHADER);
+            GLuint geometryShader = createShader(geometryPath, GL_GEOMETRY_SHADER);
+
+            ID = glCreateProgram();
+            glAttachShader(ID, vertexShader);
+            glAttachShader(ID, fragmentShader);
+            glAttachShader(ID, geometryShader);
+            glLinkProgram(ID);
+            
+            // Check success
+            {
+                int success;
+                char infoLog[512];
+                glGetProgramiv(ID, GL_LINK_STATUS, &success);
+                if(!success) {
+                    glGetProgramInfoLog(ID, 512, NULL, infoLog);
+                    std::cerr << "PROGRAM LINKING FAILED\n" << infoLog << std::endl;
+                }
+            }
+
+            glDetachShader(ID, vertexShader);
+            glDetachShader(ID, fragmentShader);
+            glDetachShader(ID, geometryShader);
+
+            glDeleteShader(vertexShader);
+            glDeleteShader(fragmentShader);
+            glDeleteShader(geometryShader);
+        }
+
         void use() {
             glUseProgram(ID);
         }
