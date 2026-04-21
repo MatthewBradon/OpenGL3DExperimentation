@@ -82,7 +82,14 @@ float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir);
 float ShadowCalculationPointLight(vec3 fragPos, PointLight light);
 float LinearizeDepth(float depth);
 
-
+vec3 sampleOffsetDirections[20] = vec3[]
+(
+    vec3( 1, 1, 1), vec3( 1, -1, 1), vec3(-1, -1, 1), vec3(-1, 1, 1),
+    vec3( 1, 1, -1), vec3( 1, -1, -1), vec3(-1, -1, -1), vec3(-1, 1, -1),
+    vec3( 1, 1, 0), vec3( 1, -1, 0), vec3(-1, -1, 0), vec3(-1, 1, 0),
+    vec3( 1, 0, 1), vec3(-1, 0, 1), vec3( 1, 0, -1), vec3(-1, 0, -1),
+    vec3( 0, 1, 1), vec3( 0, -1, 1), vec3( 0, -1, -1), vec3( 0, 1, -1)
+);
 
 float refractionRatio = 1.00 / 1.52;
 
@@ -285,17 +292,29 @@ float LinearizeDepth(float depth) {
 
 float ShadowCalculationPointLight(vec3 fragPos, PointLight light) {
     vec3 fragToLight = fragPos - light.position;
-    float closestDepth = texture(shadowCubeMap, fragToLight).r;
-    closestDepth *= light.far_plane; // Convert from [0,1] back [0, far_plane] (world units)
-
     float currentDepth = length(fragToLight);
+    float viewDistance = length(cameraPosition - fragPos);
     float bias = 0.05; // Bias to prevent shadow acne
-
     float shadow = 0.0;
 
-    shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0;
-    FragColor = vec4(vec3(closestDepth / light.far_plane), 1.0);
-    return shadow;
+    
+
+    float diskRadius = (1.0 + (viewDistance / light.far_plane)) / 25.0;
+
+    for (int i = 0; i < sampleOffsetDirections.length(); ++i) {
+        float closestDepth = texture(shadowCubeMap, fragToLight + sampleOffsetDirections[i] * diskRadius).r;
+        closestDepth *= light.far_plane; // Convert back to world units
+
+        shadow += currentDepth - bias > closestDepth ? 1.0 : 0.0;
+    }
+
+    if (showPointShadowMap) {
+        float depth = texture(shadowCubeMap, fragToLight).r;
+        depth *= light.far_plane; // Convert back to world units
+        FragColor = vec4(vec3(depth / light.far_plane), 1.0); // Visualize depth in shadow map
+    }
+
+    return shadow / float(sampleOffsetDirections.length());
 }
 
 
