@@ -12,11 +12,13 @@ struct Vertex {
     glm::vec3 Position;
     glm::vec3 Normal;
     glm::vec2 TexCoords;
-
-    Vertex() : Position(0.0f), Normal(0.0f), TexCoords(0.0f) {}
+    glm::vec3 Tangent;
+    glm::vec3 Bitangent;
 
     Vertex(const glm::vec3& position, const glm::vec3& normal, const glm::vec2& texCoords)
-        : Position(position), Normal(normal), TexCoords(texCoords) {}
+        : Position(position), Normal(normal), TexCoords(texCoords), Tangent(0.0f), Bitangent(0.0f) {}
+
+    Vertex() : Position(0.0f), Normal(0.0f), TexCoords(0.0f), Tangent(0.0f), Bitangent(0.0f) {}
 };
 
 struct Texture {
@@ -45,6 +47,14 @@ class Mesh {
             this->textures = textures;
 
             setupMesh();
+
+            // Debug: print mesh summary after setup
+            std::cout << "[Mesh] vertices=" << this->vertices.size()
+                      << " indices=" << this->indices.size()
+                      << " textures=" << this->textures.size() << std::endl;
+            for (size_t i = 0; i < this->textures.size(); ++i) {
+                std::cout << "  texture[" << i << "] type=" << this->textures[i].type << " path=" << this->textures[i].path << std::endl;
+            }
         }
 
 		void Draw(Shader &shader) {
@@ -52,8 +62,12 @@ class Mesh {
             // and start material textures at a higher unit to avoid clashes.
             const GLuint MATERIAL_TEXTURE_BASE_UNIT = 4;
 
-            GLuint diffuseNr = 0;
-            GLuint specularNr = 0;
+            // Use 0-based indices for GLSL sampler arrays
+            unsigned int diffuseNr  = 0;
+            unsigned int specularNr = 0;
+            unsigned int normalNr   = 0;
+            unsigned int heightNr   = 0;
+
             for (unsigned int i = 0; i < textures.size(); i++) {
                 GLuint textureUnit = MATERIAL_TEXTURE_BASE_UNIT + i;
                 glActiveTexture(GL_TEXTURE0 + textureUnit);
@@ -67,6 +81,12 @@ class Mesh {
                 } else if (name == "texture_specular") {
                     number = std::to_string(specularNr);
                     specularNr++;
+                } else if (name == "texture_normal") {
+                    number = std::to_string(normalNr);
+                    normalNr++;
+                } else if (name == "texture_height") {
+                    number = std::to_string(heightNr);
+                    heightNr++;
                 }
 
                 shader.setInt(("material."+ name + "[" + number + "]").c_str(), textureUnit);
@@ -75,6 +95,8 @@ class Mesh {
 
             shader.setInt("material.diffuseCount", diffuseNr);
             shader.setInt("material.specularCount", specularNr);
+            shader.setInt("material.normalCount", normalNr);
+            shader.setInt("material.heightCount", heightNr);
             shader.setFloat("material.shininess", 32.0f);
 
             glActiveTexture(GL_TEXTURE0);
@@ -118,6 +140,14 @@ class Mesh {
             // Layout 2 texture
             glEnableVertexAttribArray(2);
             glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, TexCoords));
+
+            // Layout 3 tangent
+            glEnableVertexAttribArray(3);
+            glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Tangent));
+
+            // Layout 4 bitangent
+            glEnableVertexAttribArray(4);
+            glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Bitangent));
             
             // Unbind the VAO
             glBindVertexArray(0);

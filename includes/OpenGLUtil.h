@@ -65,6 +65,8 @@ int createTexture(const char *filePath, bool flipVertically=true) {
     GLenum format;
     if(nrChannels == 1)
         format = GL_RED;
+    else if(nrChannels == 2)
+        format = GL_RG; // grayscale + alpha
     else if(nrChannels == 3)
         format = GL_RGB;
     else if(nrChannels == 4)
@@ -84,7 +86,81 @@ int createTexture(const char *filePath, bool flipVertically=true) {
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
+    // If the image was loaded as two channels (gray + alpha), swizzle so sampling returns
+    // vec4(gray, gray, gray, alpha) which is compatible with RGB/RGBA texture usage in shaders.
+    if (nrChannels == 2) {
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_RED);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_RED);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_RED);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, GL_GREEN);
+    }
+
     stbi_image_free(image_data);
+    return textureID;
+}
+
+// Create a texture from compressed image data in memory (e.g., embedded PNG/JPEG)
+int createTextureFromMemory(const unsigned char* data, int dataSize, bool flipVertically=true) {
+    int image_width, image_height, nrChannels;
+    stbi_set_flip_vertically_on_load(flipVertically);
+    unsigned char *image_data = stbi_load_from_memory(data, dataSize, &image_width, &image_height, &nrChannels, 0);
+
+    if (!image_data) {
+        std::cerr << "Failed to load texture from memory: " << stbi_failure_reason() << std::endl;
+        return 0;
+    }
+
+    GLenum format;
+    if(nrChannels == 1)
+        format = GL_RED;
+    else if(nrChannels == 2)
+        format = GL_RG;
+    else if(nrChannels == 3)
+        format = GL_RGB;
+    else if(nrChannels == 4)
+        format = GL_RGBA;
+    else {
+        std::cerr << "Unsupported number of channels in memory image: " << nrChannels << std::endl;
+        stbi_image_free(image_data);
+        return 0;
+    }
+
+    GLuint textureID;
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, format, image_width, image_height, 0, format, GL_UNSIGNED_BYTE, image_data);
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    if (nrChannels == 2) {
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_RED);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_RED);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_RED);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, GL_GREEN);
+    }
+
+    stbi_image_free(image_data);
+    std::cout << "Loaded embedded texture from memory (" << image_width << "x" << image_height << ")" << std::endl;
+    return textureID;
+}
+
+// Create a texture from raw RGBA(A) pixel data (uncompressed) provided by Assimp
+int createTextureFromRawRGBA(const unsigned char* data, int width, int height, int channels=4) {
+    GLenum format = (channels == 3) ? GL_RGB : GL_RGBA;
+    GLuint textureID;
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    std::cout << "Loaded embedded raw texture (" << width << "x" << height << ")" << std::endl;
     return textureID;
 }
 
@@ -130,29 +206,38 @@ int createCubeMapTexture(std::vector<std::string>& textureFaces) {
         unsigned char *image_data = stbi_load(path.string().c_str(), &image_width, &image_height, &nrChannels, 0);
 
         if (!image_data) {
-            std::cerr << "Failed to load cubemap face: " << stbi_failure_reason() << std::endl;
-            stbi_image_free(image_data);
-            glfwTerminate();
-            return 0;
+                std::cerr << "Failed to load cubemap face: " << stbi_failure_reason() << std::endl;
+                stbi_image_free(image_data);
+                glfwTerminate();
+                return 0;
         }
 
         GLenum format;
-        if(nrChannels == 1)
-            format = GL_RED;
-        else if(nrChannels == 3)
-            format = GL_RGB;
-        else if(nrChannels == 4)
-            format = GL_RGBA;
-        else {
-            std::cerr << "Unsupported number of channels in cubemap face: " << nrChannels << std::endl;
-            stbi_image_free(image_data);
-            glfwTerminate();
-            return 0;
-        }
+            if(nrChannels == 1)
+                format = GL_RED;
+            else if(nrChannels == 2)
+                format = GL_RG;
+            else if(nrChannels == 3)
+                format = GL_RGB;
+            else if(nrChannels == 4)
+                format = GL_RGBA;
+            else {
+                std::cerr << "Unsupported number of channels in cubemap face: " << nrChannels << std::endl;
+                stbi_image_free(image_data);
+                glfwTerminate();
+                return 0;
+            }
 
         glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, format, image_width, image_height, 0, format, GL_UNSIGNED_BYTE, image_data);
-        
-        
+
+        // For 2-channel cubemap faces, swizzle so sampling yields (gray,gray,gray,alpha)
+        if (nrChannels == 2) {
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_SWIZZLE_R, GL_RED);
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_SWIZZLE_G, GL_RED);
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_SWIZZLE_B, GL_RED);
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_SWIZZLE_A, GL_GREEN);
+        }
+
         stbi_image_free(image_data);
     }
 

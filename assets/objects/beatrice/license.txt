@@ -1,0 +1,11 @@
+Model Information:
+* title:	Beatrice
+* source:	https://sketchfab.com/3d-models/beatrice-91586ea3053248b1acba316f0578b2ff
+* author:	ooyam (https://sketchfab.com/ooyam)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Beatrice" (https://sketchfab.com/3d-models/beatrice-91586ea3053248b1acba316f0578b2ff) by ooyam (https://sketchfab.com/ooyam) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

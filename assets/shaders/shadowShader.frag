@@ -3,14 +3,19 @@
 #define NR_POINT_LIGHTS 1
 #define MAX_DIFFUSE 12
 #define MAX_SPECULAR 3
-
+#define MAX_NORMAL 1
+#define MAX_HEIGHT 1
 out vec4 FragColor;
 
 struct Material {
     sampler2D texture_diffuse[MAX_DIFFUSE];
     sampler2D texture_specular[MAX_SPECULAR];
+    sampler2D texture_normal[MAX_NORMAL];
+    sampler2D texture_height[MAX_HEIGHT];
     int diffuseCount;
     int specularCount;
+    int normalCount;
+    int heightCount;
     float shininess;
 };
 
@@ -54,6 +59,7 @@ in VS_OUT {
     vec3 Normal;
     vec2 TexCoords;
     vec4 FragPosLightSpace;
+    mat3 TBN;
 } fs_in;
 
 uniform Material material;
@@ -70,6 +76,7 @@ uniform bool showPointShadowMap;
 
 vec4 SampleDiffuse();
 vec3 SampleSpecular();
+vec3 SampleNormal();
 vec3 calculateDirectionalLight(DirectionalLight light, vec3 normal, vec3 viewDir);
 vec3 calculatePointLight(PointLight light, vec3 normal, vec3 FragPosition, vec3 viewDir);
 vec3 calculateSpotLight(SpotLight light, vec3 normal, vec3 FragPosition, vec3 viewDir);
@@ -91,27 +98,39 @@ vec3 sampleOffsetDirections[20] = vec3[]
     vec3( 0, 1, 1), vec3( 0, -1, 1), vec3( 0, -1, -1), vec3( 0, 1, -1)
 );
 
+vec3 SampleNormal() {
+    return texture(material.texture_normal[0], fs_in.TexCoords).rgb;
+}
+
 float refractionRatio = 1.00 / 1.52;
 
 void main() {
-    
-    vec3 norm = normalize(fs_in.Normal);
-    vec3 viewDir = normalize(cameraPosition - fs_in.FragPos);
 
+    bool useNormalMap = material.normalCount > 0;
+
+    // start with geometric normal in world space
+    vec3 norm = normalize(fs_in.Normal);
+
+    // if there's a normal map, sample tangent-space normal and convert to world space
+    if (useNormalMap) {
+        vec3 nmap = SampleNormal();
+        nmap = normalize(nmap * 2.0 - 1.0);
+        // fs_in.TBN maps tangent -> world, so multiply to get world-space normal
+        norm = normalize(fs_in.TBN * nmap);
+    }
+
+    vec3 viewDir = normalize(cameraPosition - fs_in.FragPos);
     vec4 diffuseColor = SampleDiffuse();
 
-    vec3 result = calculateDirectionalLight(dirLight, norm, viewDir);
+    // call lighting functions with world-space normals/view direction so shadows remain world-space
+    // vec3 result = calculateDirectionalLight(dirLight, norm, viewDir);
+    vec3 result = vec3(0.0);
 
     for(int i = 0; i < NR_POINT_LIGHTS; i++) {
         result += calculatePointLight(pointLights[i], norm, fs_in.FragPos, viewDir);
     }
 
-
     result += calculateSpotLight(spotLight, norm, fs_in.FragPos, viewDir);    
-    
-    // skybox using specular highlights
-    // vec3 viewDirection = normalize(fs_in.FragPos - cameraPosition);
-    // result += calculateReflection(viewDirection, fs_in.Normal) * SampleSpecular();
 
     if (!showPointShadowMap) {
         FragColor = vec4(result, diffuseColor.a);
@@ -140,22 +159,22 @@ vec3 SampleSpecular() {
 vec3 calculateDirectionalLight(DirectionalLight light, vec3 normal, vec3 viewDir) {
     // Directional light uses a constant direction for all fragments
     vec3 lightDir = normalize(-light.direction);
-	
+
     // Diffuse
-	float diff = max(dot(normal, lightDir), 0.0);
-	
+    float diff = max(dot(normal, lightDir), 0.0);
+
     // Specular
     float spec = BlinnPhongSpecular(lightDir, normal, viewDir);
-	
+
     vec3 diffuseTex  = SampleDiffuse().rgb;
     vec3 specularTex = SampleSpecular();
 
 
     // Apply
-	vec3 ambient = light.ambient * diffuseTex;
-	vec3 diffuse = light.diffuse * diff * diffuseTex;
-	vec3 specular = light.specular * spec * specularTex;
-	
+    vec3 ambient = light.ambient * diffuseTex;
+    vec3 diffuse = light.diffuse * diff * diffuseTex;
+    vec3 specular = light.specular * spec * specularTex;
+    
     vec3 result = ambient + diffuse + specular;
 
     // Shadow calculation
@@ -294,7 +313,7 @@ float ShadowCalculationPointLight(vec3 fragPos, PointLight light) {
     vec3 fragToLight = fragPos - light.position;
     float currentDepth = length(fragToLight);
     float viewDistance = length(cameraPosition - fragPos);
-    float bias = 0.05; // Bias to prevent shadow acne
+    float bias = 0.1; // Bias to prevent shadow acne
     float shadow = 0.0;
 
     

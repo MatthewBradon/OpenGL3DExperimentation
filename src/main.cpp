@@ -50,7 +50,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 void processInput(GLFWwindow *window);
 void updateDeltaTime();
 void processFlashlight(Shader& shader);
-void renderScene(Shader& shader, Plane& groundPlane, Cube& cube2, Cube& cube3);
+void renderScene(Shader& shader, Plane& groundPlane, Cube& cube2, Cube& cube3, Model* model, Model* model2, Model* model3, Model* model4);
 void directionalDebugArrow(Shader& lightCubeShader, const glm::mat4& view, const glm::mat4& projection, const glm::vec3& direction, Cube& lightCube);
 
 
@@ -267,10 +267,32 @@ int main() {
     shader.use();
     shader.setInt("shadowMap", 0);
 
+    
     // Model
-    // std::string backpackPath = "assets/objects/backpack/backpack.obj";
-    // Model backpack(std::filesystem::absolute(backpackPath).string());
+    Model* mococoModel = new Model("assets/objects/mococo_abyssgard/scene.gltf"); 
+    
+    if (!mococoModel) {
+        std::cout << "No GLTF model loaded for Mococo." << std::endl;
+    }
+
+    // Small Fauna Model
+    Model* smallFaunaModel = new Model("assets/objects/smallfauna/scene.gltf");
+    if (!smallFaunaModel) {
+        std::cout << "No GLTF model loaded for Small Fauna." << std::endl;
+    }
+
+    // Nimi Nightmare Model
+    Model* nimiModel = new Model("assets/objects/nimi_nightmare/scene.gltf");
+
+    if (!nimiModel) {
+        std::cout << "No GLTF model loaded for Nimi Nightmare." << std::endl;
+    }
    
+    Model* beatrice = new Model("assets/objects/beatrice/scene.gltf");
+
+    if (!beatrice) {
+        std::cout << "No GLTF model loaded for Beatrice." << std::endl;
+    }
 
     int planeTextureDiffuse = createTexture("assets/textures/marble.jpg");
 
@@ -370,7 +392,7 @@ int main() {
     pointLight1.setShaderUniforms(shader);
 
     // Height for point light: half the cube height (approx 0.5)
-    float pointLightHeight = 1.2f;
+    float pointLightHeight = 0.5f;
 
     skyboxShader.use();
     skyboxShader.setInt("skybox", 0);
@@ -450,7 +472,7 @@ int main() {
         
 
         // Render scene from light's perspective
-        renderScene(depthShader, groundPlane, cube2, cube3);
+        renderScene(depthShader, groundPlane, cube2, cube3, mococoModel, nimiModel, smallFaunaModel, beatrice);
         
         pointDepthShader.use();
 
@@ -462,7 +484,7 @@ int main() {
         glClear(GL_DEPTH_BUFFER_BIT);
 
         // Render scene from light's perspective
-        renderScene(pointDepthShader, groundPlane, cube2, cube3);
+        renderScene(pointDepthShader, groundPlane, cube2, cube3, mococoModel, nimiModel, smallFaunaModel, beatrice);
 
         glDisable(GL_POLYGON_OFFSET_FILL);
 
@@ -510,8 +532,7 @@ int main() {
         pointLight1.bindShadowMap(shadowCubemap);
 
 
-        // Render ground plane
-        renderScene(shader, groundPlane, cube2, cube3);
+        renderScene(shader, groundPlane, cube2, cube3, mococoModel, nimiModel, smallFaunaModel, beatrice);
 
         if (showDirectionalLightDebug) {
             directionalDebugArrow(lightCubeShader, view, projection, directionalLightDirection, lightCube);
@@ -574,6 +595,23 @@ int main() {
         glfwSwapBuffers(window);
     }
 
+
+    if (mococoModel) {
+        delete mococoModel;
+        mococoModel = nullptr;
+    }
+    if (smallFaunaModel) {
+        delete smallFaunaModel;
+        smallFaunaModel = nullptr;
+    }
+    if (nimiModel) {
+        delete nimiModel;
+        nimiModel = nullptr;
+    }
+    if (beatrice) {
+        delete beatrice;
+        beatrice = nullptr;
+    }
 
     glfwTerminate();
     return 0;
@@ -659,7 +697,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     }
 }
 
-void renderScene(Shader& shader, Plane& groundPlane, Cube& cube2, Cube& cube3) {
+void renderScene(Shader& shader, Plane& groundPlane, Cube& cube2, Cube& cube3, Model* modelPtr, Model* modelPtr2, Model* modelPtr3, Model *modelPtr4) {
     glm::mat4 model = glm::mat4(1.0f);
     model = glm::translate(model, glm::vec3(0.0f, -0.5f, 0.0f));
     shader.setMat4("model", model);
@@ -673,6 +711,42 @@ void renderScene(Shader& shader, Plane& groundPlane, Cube& cube2, Cube& cube3) {
     shader.setMat4("model", model);
     cube3.Draw(shader);
 
+    if (modelPtr) {
+        glm::mat4 mococoModelMat = glm::mat4(1.0f);
+        mococoModelMat = glm::translate(mococoModelMat, glm::vec3(0.0f, -0.5f, -2.5f));
+        shader.setMat4("model", mococoModelMat);
+        modelPtr->Draw(shader);
+    }
+    if (modelPtr2) {
+        // Build a rotation first (model-space), then translate it into world space.
+        glm::mat4 rot = glm::mat4(1.0f);
+        // Rotate so the model stands upright. Tweak angles if it still lies on its side.
+        rot = glm::rotate(rot, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f)); // X-axis
+        rot = glm::rotate(rot, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));  // Y-axis flip
+        rot = glm::rotate(rot, glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f));   // Z axis flip to correct orientation
+
+        glm::mat4 nimiModelMat = glm::translate(glm::mat4(1.0f), glm::vec3(1.0f, -0.5f, -2.5f)) * rot;
+        shader.setMat4("model", nimiModelMat);
+        modelPtr2->Draw(shader);
+    }
+    if (modelPtr3) {
+        glm::mat4 smallFaunaModelMat = glm::mat4(1.0f);
+        smallFaunaModelMat = glm::translate(smallFaunaModelMat, glm::vec3(-1.0f, -0.5f, -2.5f));
+        shader.setMat4("model", smallFaunaModelMat);
+        modelPtr3->Draw(shader);
+    }
+
+    if (modelPtr4) {
+        glm::mat4 rot = glm::mat4(1.0f);
+        
+        // Model is looking down the positive Z axis in model space, so rotate it to face the camera which looks down negative Z.
+        rot = glm::rotate(rot, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+        glm::mat4 beatriceModelMat = glm::mat4(1.0f);
+        beatriceModelMat = glm::translate(beatriceModelMat, glm::vec3(0.0f, -0.5f, 2.5f)) * rot;
+        shader.setMat4("model", beatriceModelMat);
+        modelPtr4->Draw(shader);
+    }
 }
 
 void directionalDebugArrow(Shader& lightCubeShader, const glm::mat4& view, const glm::mat4& projection, const glm::vec3& direction, Cube& lightCube) {
