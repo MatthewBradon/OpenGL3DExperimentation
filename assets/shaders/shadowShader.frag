@@ -25,7 +25,6 @@ struct DirectionalLight {
     vec3 diffuse;
     vec3 specular;
 };
-
 struct PointLight {
     vec3 position;
     
@@ -60,6 +59,8 @@ in VS_OUT {
     vec2 TexCoords;
     vec4 FragPosLightSpace;
     mat3 TBN;
+    vec3 TangentFragPos;
+    vec3 TangentCameraPos;
 } fs_in;
 
 uniform Material material;
@@ -73,6 +74,9 @@ uniform samplerCube skybox;
 // Single global cube shadow map for point lights
 uniform samplerCube shadowCubeMap;
 uniform bool showPointShadowMap;
+uniform bool useParallaxMapping;
+
+vec2 adjustedTexCoords;
 
 vec4 SampleDiffuse();
 vec3 SampleSpecular();
@@ -82,12 +86,12 @@ vec3 calculatePointLight(PointLight light, vec3 normal, vec3 FragPosition, vec3 
 vec3 calculateSpotLight(SpotLight light, vec3 normal, vec3 FragPosition, vec3 viewDir);
 vec3 calculateRefraction(vec3 viewDir, vec3 normal);
 vec3 calculateReflection(vec3 viewDir, vec3 normal);
-float LinearizeDepth(float depth);
 float PhongSpecular(vec3 lightDir, vec3 normal, vec3 viewDir);
 float BlinnPhongSpecular(vec3 lightDir, vec3 normal, vec3 viewDir);
 float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir);
 float ShadowCalculationPointLight(vec3 fragPos, PointLight light);
 float LinearizeDepth(float depth);
+vec2 ParallaxOcclusionMapping(vec2 texCoords, vec3 viewDir);
 
 vec3 sampleOffsetDirections[20] = vec3[]
 (
@@ -99,7 +103,7 @@ vec3 sampleOffsetDirections[20] = vec3[]
 );
 
 vec3 SampleNormal() {
-    return texture(material.texture_normal[0], fs_in.TexCoords).rgb;
+    return texture(material.texture_normal[0], adjustedTexCoords).rgb;
 }
 
 float refractionRatio = 1.00 / 1.52;
@@ -117,6 +121,18 @@ void main() {
         nmap = normalize(nmap * 2.0 - 1.0);
         // fs_in.TBN maps tangent -> world, so multiply to get world-space normal
         norm = normalize(fs_in.TBN * nmap);
+
+        // If normal mapping is enabled, also apply parallax occlusion mapping to adjust texture coordinates
+        // Use adjustedTexCoords (do NOT write to fs_in)
+        adjustedTexCoords = fs_in.TexCoords;
+        if (useParallaxMapping) {
+            vec3 T_viewDir = normalize(fs_in.TangentCameraPos - fs_in.TangentFragPos);
+            vec2 parallaxTexCoords = ParallaxOcclusionMapping(adjustedTexCoords, T_viewDir);
+            adjustedTexCoords = parallaxTexCoords;
+        }
+
+    } else {
+        adjustedTexCoords = fs_in.TexCoords;
     }
 
     vec3 viewDir = normalize(cameraPosition - fs_in.FragPos);
@@ -141,7 +157,7 @@ void main() {
 vec4 SampleDiffuse() {
     vec4 color = vec4(0.0);
     for (int i = 0; i < material.diffuseCount; i++) {
-    color += texture(material.texture_diffuse[i], fs_in.TexCoords);
+    color += texture(material.texture_diffuse[i], adjustedTexCoords);
     }
     // Average
     return color / max(material.diffuseCount, 1);
@@ -150,7 +166,7 @@ vec4 SampleDiffuse() {
 vec3 SampleSpecular() {
     vec3 color = vec3(0.0);
     for (int i = 0; i < material.specularCount; i++) {
-    color += texture(material.texture_specular[i], fs_in.TexCoords).rgb;
+    color += texture(material.texture_specular[i], adjustedTexCoords).rgb;
     }
     return color / max(material.specularCount, 1);
 }
@@ -334,6 +350,55 @@ float ShadowCalculationPointLight(vec3 fragPos, PointLight light) {
     }
 
     return shadow / float(sampleOffsetDirections.length());
+}
+
+vec2 ParallaxOcclusionMapping(vec2 texCoords, vec3 viewDir)
+{
+	const float minLayers = 8.0;
+	const float maxLayers = 32.0;
+	
+	float numLayers = mix(maxLayers, minLayers, max(dot(vec3(0.0, 0.0, 1.0), viewDir), 0.0));
+
+	// calculate the size of each layer
+	float layerDepth = 1.0 / numLayers;
+
+	// depth of current layer
+	float currentLayerDepth = 0.0;
+
+    // Use the material height map sampler directly (samplers must be uniform globals)
+    float height_scale = 20.0;
+
+	// amount to shift the texture coordinates per layer (from vector P)
+	vec2 P = viewDir.xy * height_scale;
+	vec2 deltaTexCoords = P / numLayers;
+	
+	// get initial values
+	vec2 currentTexCoords = texCoords;
+    float currentDepthMapValue = texture(material.texture_height[0], currentTexCoords).r;
+	
+	while(currentLayerDepth < currentDepthMapValue)
+	{
+		// shift texture coordinates along direction of P
+		currentTexCoords -= deltaTexCoords;
+		
+		// get depthmap value at current texture coordinates
+        currentDepthMapValue = texture(material.texture_height[0], currentTexCoords).r;
+		
+		// get depth of next layer
+		currentLayerDepth += layerDepth;
+	}
+	
+	// get texture coordinates before collision (reverse operations)
+	vec2 prevTexCoords = currentTexCoords + deltaTexCoords;
+	
+	// get depth after and before collision for linear interpolation
+	float afterDepth = currentDepthMapValue - currentLayerDepth;
+    float beforeDepth = texture(material.texture_height[0], prevTexCoords).r - currentLayerDepth + layerDepth;
+	
+	// interpolation of texture coordinates
+	float weight = afterDepth / (afterDepth - beforeDepth);
+	vec2 finalTexCoords = prevTexCoords * weight + currentTexCoords * (1.0 - weight);
+	return finalTexCoords;
 }
 
 

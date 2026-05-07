@@ -162,6 +162,10 @@ private:
             // height maps
             std::vector<Texture> heightMaps = loadMaterialTextures(material, aiTextureType_HEIGHT, "texture_height", scene);
             textures.insert(textures.end(), heightMaps.begin(), heightMaps.end());
+
+            // Some files use DISPLACEMENT for height/displacement maps — load those too as height
+            std::vector<Texture> displacementMaps = loadMaterialTextures(material, aiTextureType_DISPLACEMENT, "texture_height", scene);
+            textures.insert(textures.end(), displacementMaps.begin(), displacementMaps.end());
         }
 
         return Mesh(vertices, indices, textures);
@@ -219,6 +223,9 @@ private:
                 texture.type = typeName;
                 texture.path = std::string(str.C_Str());
                 textures.push_back(texture);
+                if (typeName == "texture_height") {
+                    std::cout << "[Model] Loaded height map: " << texture.path << " id=" << texture.id << std::endl;
+                }
                 loadedTextures.push_back(texture);
             }
         }

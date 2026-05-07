@@ -36,6 +36,7 @@ bool useDither = false;
 bool showShadowMap = false;
 bool showDirectionalLightDebug = false;
 bool showPointShadowMap = false;
+bool useParallaxMapping = true;
 
 float deltaTime = 0.0f; // Time between current frame and last frame
 float lastFrame = 0.0f; // Time of last frame
@@ -157,6 +158,7 @@ int main() {
     
     screenShader.use();
     screenShader.setInt("screenTexture", 0);
+    screenShader.setFloat("exposure", 0.5f);
 
     ditherShader.use();
     ditherShader.setInt("screenTexture", 0);
@@ -196,7 +198,7 @@ int main() {
     GLuint textureColorBuffer;
     glGenTextures(1, &textureColorBuffer);
     glBindTexture(GL_TEXTURE_2D, textureColorBuffer);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, fbWidth, fbHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, fbWidth, fbHeight, 0, GL_RGB, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -503,6 +505,8 @@ int main() {
         shader.use();
         shader.setBool("showPointShadowMap", showPointShadowMap);
         shader.setVec3("cameraPosition", camera.Position);
+        // Forward parallax toggle to the scene shader so fragments can apply POM
+        shader.setBool("useParallaxMapping", useParallaxMapping);
 
         // Bind cubemap for reflections (reserved unit 1)
         glActiveTexture(GL_TEXTURE1);
@@ -584,6 +588,12 @@ int main() {
             }
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, textureColorBuffer);
+        }
+
+        if (useParallaxMapping) {
+            screenShader.setBool("useParallaxMapping", true);
+        } else {
+            screenShader.setBool("useParallaxMapping", false);
         }
 
         glBindVertexArray(quadVAO);
@@ -694,6 +704,9 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     }
     if (key == GLFW_KEY_P && action == GLFW_PRESS) {
         showPointShadowMap = !showPointShadowMap;
+    }
+    if (key == GLFW_KEY_B && action == GLFW_PRESS) {
+        useParallaxMapping = !useParallaxMapping;
     }
 }
 

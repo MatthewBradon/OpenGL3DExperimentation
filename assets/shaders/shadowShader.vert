@@ -12,12 +12,15 @@ out VS_OUT {
     vec2 TexCoords;
     vec4 FragPosLightSpace;
     mat3 TBN;
+    vec3 TangentFragPos;
+    vec3 TangentCameraPos;
 } vs_out;
 
 uniform mat4 projection;
 uniform mat4 view;
 uniform mat4 model;
 uniform mat4 lightSpaceMatrix;
+uniform vec3 cameraPosition;
 
 void main() {
     vs_out.FragPos = vec3(model * vec4(aPos, 1.0));
@@ -33,6 +36,10 @@ void main() {
     
     mat3 TBN = mat3(T, B, N);
     vs_out.TBN = TBN;
+
+    mat3 inverseTBN = transpose(TBN);
+    vs_out.TangentFragPos = inverseTBN * vs_out.FragPos;
+    vs_out.TangentCameraPos = inverseTBN * cameraPosition;
 
     gl_Position = projection * view * model * vec4(aPos, 1.0);
 }
