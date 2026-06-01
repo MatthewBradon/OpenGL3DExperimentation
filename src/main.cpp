@@ -10,6 +10,10 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
 #include "Camera.h"
 #include "Shader.h"
 #include "Model.h"
@@ -18,6 +22,7 @@
 #include "Cube.h"
 #include "SkyCube.h"
 #include "PointLight.h"
+#include "FontManager.h"
 
 #define WINDOW_HEIGHT 1080  
 #define WINDOW_WIDTH 1920
@@ -53,7 +58,7 @@ void updateDeltaTime();
 void processFlashlight(Shader& shader);
 void renderScene(Shader& shader, Plane& groundPlane, Cube& cube2, Cube& cube3, Model* model, Model* model2, Model* model3, Model* model4);
 void directionalDebugArrow(Shader& lightCubeShader, const glm::mat4& view, const glm::mat4& projection, const glm::vec3& direction, Cube& lightCube);
-
+void RenderText(Shader &shader, std::string text, float x, float y, float scale, glm::vec3 color, unsigned int textVAO, unsigned int textVBO);
 
 std::vector<glm::vec3> grassPositions;
 
@@ -138,6 +143,8 @@ int main() {
     Shader lightCubeShader("assets/shaders/light_cube.vert", "assets/shaders/light_cube.frag");
     Shader depthShader("assets/shaders/lightDepthShader.vert", "assets/shaders/lightDepthShader.frag");
     Shader pointDepthShader("assets/shaders/pointShadowsDepth.vert", "assets/shaders/pointShadowsDepth.frag", "assets/shaders/pointShadowsDepth.geom");
+    Shader textShader("assets/shaders/renderText.vert", "assets/shaders/renderText.frag");
+
 
     // Quad for post processing
     GLuint quadVAO, quadVBO;
@@ -424,9 +431,35 @@ int main() {
     debugQuadShader.setFloat("near_plane", near_plane);
     debugQuadShader.setFloat("far_plane", far_plane);
 
+
     
 
-    // RENDER LOOP
+
+    // =================================================
+    // ================ Font Stuff =====================
+    // =================================================
+    
+    FontManager::Instance().InitFont("assets/fonts/ByteBounce.ttf", 48);
+    
+    unsigned int textVAO, textVBO;
+    glGenVertexArrays(1, &textVAO);
+    glGenBuffers(1, &textVBO);
+    glBindVertexArray(textVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, textVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 6*4, NULL, GL_DYNAMIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    glm::mat4 orthoProjection = glm::ortho(0.0f, (float)fbWidth, 0.0f, (float)fbHeight);
+    textShader.use();
+    textShader.setMat4("projection", orthoProjection);
+
+    // ================================================
+    // ================ Render Loop =====================
+    // ================================================
+
     int lastFbWidth = fbWidth;
     int lastFbHeight = fbHeight;
 
@@ -445,6 +478,10 @@ int main() {
 
             glBindTexture(GL_TEXTURE_2D, 0);
             glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+            orthoProjection = glm::ortho(0.0f, (float)fbWidth, 0.0f, (float)fbHeight);
+            textShader.use();
+            textShader.setMat4("projection", orthoProjection);
 
             lastFbWidth = fbWidth;
             lastFbHeight = fbHeight;
@@ -598,6 +635,8 @@ int main() {
 
         glBindVertexArray(quadVAO);
         glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        RenderText(textShader, "I suppose", fbWidth/2.0f, fbHeight/2.0f, 1.0f, glm::vec3(0.5, 0.8f, 0.2f), textVAO, textVBO);
 
         glEnable(GL_DEPTH_TEST); // Re-enable depth testing for next frame
         // Check call events and swap buffers
@@ -794,4 +833,51 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     fbHeight = height;
 
     glViewport(0, 0, fbWidth, fbHeight);
+}
+
+void RenderText(Shader &shader, std::string text, float x, float y, float scale, glm::vec3 color, unsigned int textVAO, unsigned int textVBO) {
+	// activate corresponding render state
+	shader.use();
+	glUniform3f(glGetUniformLocation(shader.ID, "textColor"), color.x, color.y, color.z);
+	glActiveTexture(GL_TEXTURE0);
+	glBindVertexArray(textVAO);
+	
+	// iterate through all characters
+	std::string::const_iterator c;
+	
+	for (c = text.begin(); c != text.end(); c++) {
+		
+		Character ch = FontManager::Instance().Get(*c);
+		float xpos = x + ch.bearing.x * scale;
+		float ypos = y - (ch.size.y - ch.bearing.y) * scale;
+		float w = ch.size.x * scale;
+		float h = ch.size.y * scale;
+		
+		// update VBO for each character
+		float vertices[6][4] = {
+			{ xpos, ypos + h, 0.0f, 0.0f },
+			{ xpos, ypos, 0.0f, 1.0f },
+			{ xpos + w, ypos, 1.0f, 1.0f },
+			{ xpos, ypos + h, 0.0f, 0.0f },
+			{ xpos + w, ypos, 1.0f, 1.0f },
+			{ xpos + w, ypos + h, 1.0f, 0.0f }
+		};
+		
+		// render glyph texture over quad
+		glBindTexture(GL_TEXTURE_2D, ch.textureID);
+		
+		// update content of VBO memory
+		glBindBuffer(GL_ARRAY_BUFFER, textVBO);
+		glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		
+		// render quad
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+		
+		// advance cursors for next glyph (advance is 1/64 pixels)
+		x += (ch.advance >> 6) * scale; // bitshift by 6 (2^6 = 64)
+	}
+	
+	glBindVertexArray(0);
+	glBindTexture(GL_TEXTURE_2D, 0);
 }

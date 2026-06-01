@@ -1,11 +1,12 @@
 {
   "dependencies": [
+    "assimp",
     "freeglut",
     "glad",
     "glfw3",
     "glm",
     "imgui",
     "stb",
-    "assimp"
+    "freetype"
   ]
 }

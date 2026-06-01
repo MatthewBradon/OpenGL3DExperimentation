@@ -10,6 +10,7 @@ find_package(GLUT REQUIRED)
 find_package(Stb REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(assimp CONFIG REQUIRED)
+find_package(Freetype CONFIG REQUIRED)
 
 # OpenGL3DExperimentation executable
 add_executable(OpenGL3DExperimentation
@@ -47,4 +48,5 @@ target_link_libraries(OpenGL3DExperimentation PRIVATE
     GLUT::GLUT
     glm::glm
     assimp::assimp
+    Freetype::Freetype
 )
